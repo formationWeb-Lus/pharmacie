@@ -3,8 +3,15 @@
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import (
+    create_engine,
+    inspect,
+    text,
+)
+from sqlalchemy.orm import (
+    sessionmaker,
+    declarative_base,
+)
 
 
 # ============================================================
@@ -68,21 +75,28 @@ def table_exists(table_name):
     """
     Check whether a table exists.
     """
+
     inspector = inspect(engine)
 
     return table_name in inspector.get_table_names()
 
 
-def column_exists(table_name, column_name):
+def column_exists(
+    table_name,
+    column_name,
+):
     """
     Check whether a column exists in a SQLite table.
     """
+
     inspector = inspect(engine)
 
     if table_name not in inspector.get_table_names():
         return False
 
-    columns = inspector.get_columns(table_name)
+    columns = inspector.get_columns(
+        table_name
+    )
 
     return any(
         column["name"] == column_name
@@ -110,6 +124,7 @@ def add_column_if_not_exists(
         return False
 
     with engine.begin() as connection:
+
         connection.execute(
             text(
                 f"""
@@ -132,13 +147,21 @@ def add_column_if_not_exists(
 # 5. SAFE INTEGER
 # ============================================================
 
-def safe_int(value, default=0):
+def safe_int(
+    value,
+    default=0,
+):
     """
     Safely convert a value to integer.
     """
+
     try:
         return int(value)
-    except (TypeError, ValueError):
+
+    except (
+        TypeError,
+        ValueError,
+    ):
         return default
 
 
@@ -146,40 +169,56 @@ def safe_int(value, default=0):
 # 6. SAFE FLOAT
 # ============================================================
 
-def safe_float(value, default=0.0):
+def safe_float(
+    value,
+    default=0.0,
+):
     """
     Safely convert a value to float.
     """
+
     try:
         return float(value)
-    except (TypeError, ValueError):
+
+    except (
+        TypeError,
+        ValueError,
+    ):
         return default
 
 
 # ============================================================
-# 6B. SAFE DATE
+# 7. SAFE DATE
 # ============================================================
 
-def parse_date_safe(value, default=None):
+def parse_date_safe(
+    value,
+    default=None,
+):
     """
-    Convert legacy SQLite date/datetime values into a Python date.
+    Convert legacy SQLite date/datetime values
+    into a Python date.
 
     Accepts:
         2026-09-29
-        2026-09-29 17:35:00.386496
-        2026-09-29T17:35:00.386496
+        2026-09-29 17:35:00
+        2026-09-29T17:35:00
         datetime/date objects
-
-    This is important because old SQLite databases may contain
-    a DATETIME string inside a column now declared as DATE.
     """
+
     if value is None:
         return default
 
-    if isinstance(value, datetime):
+    if isinstance(
+        value,
+        datetime,
+    ):
         return value.date()
 
-    if isinstance(value, date):
+    if isinstance(
+        value,
+        date,
+    ):
         return value
 
     raw = str(value).strip()
@@ -187,73 +226,103 @@ def parse_date_safe(value, default=None):
     if not raw:
         return default
 
-    # The first 10 characters are the ISO date part for both:
-    # YYYY-MM-DD
-    # YYYY-MM-DD HH:MM:SS
-    # YYYY-MM-DDTHH:MM:SS
     if len(raw) >= 10:
+
         candidate = raw[:10]
+
         try:
-            return date.fromisoformat(candidate)
+            return date.fromisoformat(
+                candidate
+            )
+
         except ValueError:
             pass
 
-    # Last attempt for less common ISO representations.
     try:
-        from datetime import datetime
+
         return datetime.fromisoformat(
-            raw.replace("Z", "+00:00")
+            raw.replace(
+                "Z",
+                "+00:00",
+            )
         ).date()
-    except (TypeError, ValueError):
+
+    except (
+        TypeError,
+        ValueError,
+    ):
         return default
 
 
+# ============================================================
+# 8. NORMALIZE LEGACY DATE COLUMNS
+# ============================================================
+
 def normalize_legacy_date_columns():
     """
-    Normalize old SQLite date columns before SQLAlchemy ORM reads them.
-
-    Older versions of the application could save values such as:
-        2026-09-29 17:35:00.386496
-
-    into a column declared as DATE.
-
-    SQLAlchemy's SQLite DATE processor expects:
-        YYYY-MM-DD
-
-    so ORM queries can fail before our Python migration code even runs.
-
-    This function changes only the textual representation of the date;
-    it does NOT delete, replace, or otherwise alter the actual date.
+    Normalize old SQLite date columns before
+    SQLAlchemy ORM reads them.
     """
+
     tables_and_columns = {
-        "products": ["expiry_date"],
-        "sale_items": ["expiry_date"],
-        "product_batches": ["expiry_date"],
+        "products": [
+            "expiry_date",
+        ],
+        "sale_items": [
+            "expiry_date",
+        ],
+        "product_batches": [
+            "expiry_date",
+        ],
+        "expenses": [
+            "expense_date",
+        ],
     }
 
     with engine.begin() as connection:
-        for table_name, columns in tables_and_columns.items():
-            if not table_exists(table_name):
+
+        for (
+            table_name,
+            columns,
+        ) in tables_and_columns.items():
+
+            if not table_exists(
+                table_name
+            ):
                 continue
 
             for column_name in columns:
-                if not column_exists(table_name, column_name):
+
+                if not column_exists(
+                    table_name,
+                    column_name,
+                ):
                     continue
 
                 connection.execute(
                     text(
                         f"""
                         UPDATE {table_name}
-                        SET {column_name} = substr({column_name}, 1, 10)
+                        SET {column_name} =
+                            substr(
+                                {column_name},
+                                1,
+                                10
+                            )
                         WHERE {column_name} IS NOT NULL
-                          AND length(CAST({column_name} AS TEXT)) > 10
+                          AND length(
+                              CAST(
+                                  {column_name}
+                                  AS TEXT
+                              )
+                          ) > 10
                         """
                     )
                 )
 
 
 # ============================================================
-# 7. NORMALIZE UNIT NAME
+# 9. NORMALIZE UNIT NAME
 # ============================================================
 
 def normalize_unit(unit):
@@ -310,15 +379,12 @@ def normalize_unit(unit):
 
 
 # ============================================================
-# 8. PRODUCT CONVERSION VALUES
+# 10. PRODUCT CONVERSION VALUES
 # ============================================================
 
 def get_units_per_plaquette(product):
     """
     Return number of base units in one plaquette.
-
-    Example:
-        1 plaquette = 10 comprimés
     """
 
     value = safe_int(
@@ -330,15 +396,15 @@ def get_units_per_plaquette(product):
         10,
     )
 
-    return max(1, value)
+    return max(
+        1,
+        value,
+    )
 
 
 def get_plaquettes_per_box(product):
     """
     Return number of plaquettes in one box.
-
-    Example:
-        1 boîte = 10 plaquettes
     """
 
     value = safe_int(
@@ -350,15 +416,15 @@ def get_plaquettes_per_box(product):
         10,
     )
 
-    return max(1, value)
+    return max(
+        1,
+        value,
+    )
 
 
 def get_boxes_per_carton(product):
     """
     Return number of boxes in one carton.
-
-    Example:
-        1 carton = 10 boîtes
     """
 
     value = safe_int(
@@ -370,18 +436,15 @@ def get_boxes_per_carton(product):
         10,
     )
 
-    return max(1, value)
+    return max(
+        1,
+        value,
+    )
 
 
 def get_units_per_box(product):
     """
     Return number of base units in one box.
-
-    Example:
-        1 boîte
-        = 10 plaquettes
-        × 10 comprimés
-        = 100 comprimés
     """
 
     return (
@@ -393,13 +456,6 @@ def get_units_per_box(product):
 def get_units_per_carton(product):
     """
     Return number of base units in one carton.
-
-    Example:
-        1 carton
-        = 10 boîtes
-        × 10 plaquettes
-        × 10 comprimés
-        = 1000 comprimés
     """
 
     return (
@@ -409,7 +465,7 @@ def get_units_per_carton(product):
 
 
 # ============================================================
-# 9. CONVERT PACKAGING TO BASE UNITS
+# 11. CONVERT PACKAGING TO BASE UNITS
 # ============================================================
 
 def get_units_for_packaging(
@@ -418,35 +474,35 @@ def get_units_for_packaging(
 ):
     """
     Convert one packaging unit into base units.
-
-    Example:
-        Comprimé  = 1
-        Plaquette = 10
-        Boîte     = 100
-        Carton    = 1000
     """
 
-    packaging = normalize_unit(packaging)
+    packaging = normalize_unit(
+        packaging
+    )
 
     if packaging == "Comprimé":
         return 1
 
     if packaging == "Plaquette":
-        return get_units_per_plaquette(product)
+        return get_units_per_plaquette(
+            product
+        )
 
     if packaging == "Boîte":
-        return get_units_per_box(product)
+        return get_units_per_box(
+            product
+        )
 
     if packaging == "Carton":
-        return get_units_per_carton(product)
+        return get_units_per_carton(
+            product
+        )
 
-    # For products without hierarchical packaging,
-    # one unit equals one base unit.
     return 1
 
 
 # ============================================================
-# 10. CONVERT QUANTITY TO BASE UNITS
+# 12. CONVERT QUANTITY TO BASE UNITS
 # ============================================================
 
 def convert_to_base_units(
@@ -456,11 +512,6 @@ def convert_to_base_units(
 ):
     """
     Convert a quantity into base units.
-
-    Example:
-        3 boîtes
-        = 3 × 100
-        = 300 comprimés
     """
 
     quantity = safe_int(
@@ -480,19 +531,12 @@ def convert_to_base_units(
 
 
 # ============================================================
-# 11. STOCK DISPLAY
+# 13. STOCK DISPLAY
 # ============================================================
 
 def get_stock_display(product):
     """
     Convert global stock into a readable format.
-
-    Example:
-        1257 comprimés
-
-    becomes:
-        1 carton(s) + 2 boîte(s)
-        + 5 plaquette(s) + 7 comprimé(s)
     """
 
     stock_units = max(
@@ -507,15 +551,21 @@ def get_stock_display(product):
     )
 
     units_per_plaquette = (
-        get_units_per_plaquette(product)
+        get_units_per_plaquette(
+            product
+        )
     )
 
     units_per_box = (
-        get_units_per_box(product)
+        get_units_per_box(
+            product
+        )
     )
 
     units_per_carton = (
-        get_units_per_carton(product)
+        get_units_per_carton(
+            product
+        )
     )
 
     cartons = (
@@ -577,16 +627,15 @@ def get_stock_display(product):
 
 
 # ============================================================
-# 12. UPDATE LEGACY QUANTITY
+# 14. UPDATE LEGACY QUANTITY
 # ============================================================
 
-def get_main_packaging_quantity(product):
+def get_main_packaging_quantity(
+    product
+):
     """
-    Calculate the number of complete
-    main packaging units.
-
-    This is maintained for compatibility
-    with the old application.
+    Calculate the number of complete main
+    packaging units.
     """
 
     stock_units = max(
@@ -619,14 +668,18 @@ def get_main_packaging_quantity(product):
     return stock_units // units
 
 
-def update_display_quantity(product):
+def update_display_quantity(
+    product
+):
     """
     Synchronize the old quantity field
     with stock_units.
     """
 
-    quantity = get_main_packaging_quantity(
-        product
+    quantity = (
+        get_main_packaging_quantity(
+            product
+        )
     )
 
     product.quantity = quantity
@@ -635,7 +688,7 @@ def update_display_quantity(product):
 
 
 # ============================================================
-# 13. PRICE MANAGEMENT
+# 15. PRICE MANAGEMENT
 # ============================================================
 
 def get_price_for_packaging(
@@ -644,17 +697,14 @@ def get_price_for_packaging(
 ):
     """
     Return the selling price for a unit.
-
-    Prices are explicitly stored for:
-        Comprimé
-        Plaquette
-        Boîte
-        Carton
     """
 
-    packaging = normalize_unit(packaging)
+    packaging = normalize_unit(
+        packaging
+    )
 
     if packaging == "Comprimé":
+
         return safe_float(
             getattr(
                 product,
@@ -664,6 +714,7 @@ def get_price_for_packaging(
         )
 
     if packaging == "Plaquette":
+
         return safe_float(
             getattr(
                 product,
@@ -673,6 +724,7 @@ def get_price_for_packaging(
         )
 
     if packaging == "Boîte":
+
         return safe_float(
             getattr(
                 product,
@@ -682,6 +734,7 @@ def get_price_for_packaging(
         )
 
     if packaging == "Carton":
+
         return safe_float(
             getattr(
                 product,
@@ -699,19 +752,12 @@ def get_price_for_packaging(
     )
 
 
-def calculate_product_prices(product):
+def calculate_product_prices(
+    product
+):
     """
     Calculate packaging prices from
     the product's main price.
-
-    Example:
-        Box price = 3000 FC
-        1 box = 10 plaquettes
-        1 plaquette = 10 comprimés
-
-        Plaquette = 300 FC
-        Comprimé = 30 FC
-        Carton = 30000 FC
     """
 
     base_price = max(
@@ -726,15 +772,21 @@ def calculate_product_prices(product):
     )
 
     units_per_plaquette = (
-        get_units_per_plaquette(product)
+        get_units_per_plaquette(
+            product
+        )
     )
 
     plaquettes_per_box = (
-        get_plaquettes_per_box(product)
+        get_plaquettes_per_box(
+            product
+        )
     )
 
     boxes_per_carton = (
-        get_boxes_per_carton(product)
+        get_boxes_per_carton(
+            product
+        )
     )
 
     packaging = normalize_unit(
@@ -747,7 +799,9 @@ def calculate_product_prices(product):
 
     if packaging == "Comprimé":
 
-        price_per_comprime = base_price
+        price_per_comprime = (
+            base_price
+        )
 
         price_per_plaquette = (
             base_price
@@ -771,7 +825,9 @@ def calculate_product_prices(product):
             / units_per_plaquette
         )
 
-        price_per_plaquette = base_price
+        price_per_plaquette = (
+            base_price
+        )
 
         price_per_box = (
             base_price
@@ -785,7 +841,9 @@ def calculate_product_prices(product):
 
     elif packaging == "Carton":
 
-        price_per_carton = base_price
+        price_per_carton = (
+            base_price
+        )
 
         price_per_box = (
             base_price
@@ -804,7 +862,9 @@ def calculate_product_prices(product):
 
     else:
 
-        price_per_box = base_price
+        price_per_box = (
+            base_price
+        )
 
         price_per_plaquette = (
             base_price
@@ -843,15 +903,12 @@ def calculate_product_prices(product):
 
 
 # ============================================================
-# 14. EXPIRATION
+# 16. EXPIRATION
 # ============================================================
 
 def is_product_expired(product):
     """
     Legacy product expiration check.
-
-    New system:
-        expiration belongs to ProductBatch.
     """
 
     expiry_date = getattr(
@@ -874,15 +931,15 @@ def is_batch_expired(batch):
     if not batch.expiry_date:
         return False
 
-    return batch.expiry_date < date.today()
+    return (
+        batch.expiry_date
+        < date.today()
+    )
 
 
 def days_until_expiration(batch):
     """
-    Return the number of days remaining
-    before expiration.
-
-    Negative value means already expired.
+    Return number of days remaining before expiration.
     """
 
     if not batch.expiry_date:
@@ -899,8 +956,8 @@ def is_batch_expiring_soon(
     days=90,
 ):
     """
-    Return True if the batch expires
-    within the specified number of days.
+    Return True if the batch expires within
+    the specified period.
     """
 
     if not batch.expiry_date:
@@ -921,7 +978,7 @@ def is_batch_expiring_soon(
 
 
 # ============================================================
-# 15. BATCH VALIDATION
+# 17. BATCH VALIDATION
 # ============================================================
 
 def validate_batch_expiry(
@@ -930,12 +987,6 @@ def validate_batch_expiry(
 ):
     """
     Validate a batch expiration date.
-
-    For medicines:
-        expiry date is mandatory.
-
-    For non-medicines:
-        expiry date may be empty.
     """
 
     is_medicine = bool(
@@ -946,14 +997,19 @@ def validate_batch_expiry(
         )
     )
 
-    if is_medicine and not expiry_date:
+    if (
+        is_medicine
+        and not expiry_date
+    ):
         raise ValueError(
             "La date d'expiration est "
             "obligatoire pour tout médicament."
         )
 
     if expiry_date:
+
         if expiry_date < date.today():
+
             raise ValueError(
                 "La date d'expiration ne "
                 "peut pas être dans le passé."
@@ -963,7 +1019,7 @@ def validate_batch_expiry(
 
 
 # ============================================================
-# 16. GET ACTIVE BATCHES
+# 18. GET ACTIVE BATCHES
 # ============================================================
 
 def get_available_batches(
@@ -973,11 +1029,6 @@ def get_available_batches(
     """
     Return active batches with stock > 0,
     ordered using FEFO.
-
-    FEFO =
-        First Expired, First Out
-
-    The batch expiring first is returned first.
     """
 
     from database.models import ProductBatch
@@ -989,6 +1040,7 @@ def get_available_batches(
         close_session = True
 
     try:
+
         batches = (
             db.query(ProductBatch)
             .filter(
@@ -1014,12 +1066,13 @@ def get_available_batches(
         return batches
 
     finally:
+
         if close_session:
             db.close()
 
 
 # ============================================================
-# 17. GET FIRST EXPIRING BATCH
+# 19. GET FIRST EXPIRING BATCH
 # ============================================================
 
 def get_first_expiring_batch(
@@ -1042,7 +1095,7 @@ def get_first_expiring_batch(
 
 
 # ============================================================
-# 18. CALCULATE GLOBAL STOCK
+# 20. CALCULATE GLOBAL STOCK
 # ============================================================
 
 def calculate_product_global_stock(
@@ -1063,6 +1116,7 @@ def calculate_product_global_stock(
         close_session = True
 
     try:
+
         total = (
             db.query(ProductBatch)
             .filter(
@@ -1099,12 +1153,13 @@ def calculate_product_global_stock(
         return product.stock_units
 
     finally:
+
         if close_session:
             db.close()
 
 
 # ============================================================
-# 19. SYNCHRONIZE PRODUCT STOCK
+# 21. SYNCHRONIZE PRODUCT STOCK
 # ============================================================
 
 def synchronize_product_stock(
@@ -1123,7 +1178,7 @@ def synchronize_product_stock(
 
 
 # ============================================================
-# 20. ADD STOCK TO A BATCH
+# 22. ADD STOCK TO A BATCH
 # ============================================================
 
 def add_batch_stock(
@@ -1138,13 +1193,6 @@ def add_batch_stock(
 ):
     """
     Add stock to a batch.
-
-    Example:
-        5 cartons
-        1 carton = 1000 comprimés
-
-        Added:
-            5000 comprimés
 
     If the same product + batch number exists,
     the existing batch is updated.
@@ -1178,6 +1226,7 @@ def add_batch_stock(
         close_session = True
 
     try:
+
         existing_batch = (
             db.query(ProductBatch)
             .filter(
@@ -1269,7 +1318,7 @@ def add_batch_stock(
 
 
 # ============================================================
-# 21. ADD PRODUCT STOCK
+# 23. ADD PRODUCT STOCK
 # ============================================================
 
 def add_product_stock(
@@ -1284,16 +1333,10 @@ def add_product_stock(
 ):
     """
     Add stock to a product.
-
-    New system:
-        stock belongs to a batch.
-
-    A medicine should normally provide:
-        batch_number
-        expiry_date
     """
 
     if not batch_number:
+
         raise ValueError(
             "Le numéro de lot est obligatoire."
         )
@@ -1311,7 +1354,7 @@ def add_product_stock(
 
 
 # ============================================================
-# 22. CHECK PRODUCT STOCK
+# 24. CHECK PRODUCT STOCK
 # ============================================================
 
 def can_sell_product(
@@ -1321,8 +1364,7 @@ def can_sell_product(
     db=None,
 ):
     """
-    Check whether enough non-expired stock
-    exists for a sale.
+    Check whether enough non-expired stock exists.
     """
 
     quantity = safe_int(
@@ -1348,8 +1390,9 @@ def can_sell_product(
 
     for batch in batches:
 
-        # Never sell expired stock.
-        if is_batch_expired(batch):
+        if is_batch_expired(
+            batch
+        ):
             continue
 
         available_units += safe_int(
@@ -1357,14 +1400,17 @@ def can_sell_product(
             0,
         )
 
-        if available_units >= required_units:
+        if (
+            available_units
+            >= required_units
+        ):
             return True
 
     return False
 
 
 # ============================================================
-# 23. CALCULATE STOCK AFTER SALE
+# 25. CALCULATE STOCK AFTER SALE
 # ============================================================
 
 def calculate_stock_after_sale(
@@ -1400,7 +1446,7 @@ def calculate_stock_after_sale(
 
 
 # ============================================================
-# 24. REDUCE STOCK FROM BATCHES
+# 26. REDUCE STOCK FROM BATCHES
 # ============================================================
 
 def reduce_stock_from_batches(
@@ -1412,20 +1458,7 @@ def reduce_stock_from_batches(
     """
     Remove stock using FEFO.
 
-    FEFO:
-        First Expired, First Out
-
-    More precisely:
-        the batch with the earliest
-        valid expiration is consumed first.
-
-    Expired batches are NEVER sold.
-
-    Returns:
-        {
-            "total_units": ...,
-            "batches": [...]
-        }
+    Expired batches are never sold.
     """
 
     quantity = safe_int(
@@ -1451,6 +1484,7 @@ def reduce_stock_from_batches(
         close_session = True
 
     try:
+
         batches = get_available_batches(
             product,
             db,
@@ -1465,8 +1499,9 @@ def reduce_stock_from_batches(
             if remaining <= 0:
                 break
 
-            # Never sell expired medication.
-            if is_batch_expired(batch):
+            if is_batch_expired(
+                batch
+            ):
                 continue
 
             batch_stock = safe_int(
@@ -1494,9 +1529,15 @@ def reduce_stock_from_batches(
                 {
                     "batch": batch,
                     "batch_id": batch.id,
-                    "batch_number": batch.batch_number,
-                    "expiry_date": batch.expiry_date,
-                    "stock_units": units_to_remove,
+                    "batch_number": (
+                        batch.batch_number
+                    ),
+                    "expiry_date": (
+                        batch.expiry_date
+                    ),
+                    "stock_units": (
+                        units_to_remove
+                    ),
                 }
             )
 
@@ -1504,11 +1545,10 @@ def reduce_stock_from_batches(
 
                 batch.stock_units = 0
 
-                # Keep the batch for history,
-                # but deactivate it.
                 batch.is_active = False
 
         if remaining > 0:
+
             raise ValueError(
                 "Stock insuffisant pour "
                 "effectuer cette vente."
@@ -1541,7 +1581,7 @@ def reduce_stock_from_batches(
 
 
 # ============================================================
-# 25. LEGACY REDUCE STOCK
+# 27. LEGACY REDUCE STOCK
 # ============================================================
 
 def reduce_product_stock(
@@ -1552,9 +1592,6 @@ def reduce_product_stock(
 ):
     """
     Compatibility wrapper.
-
-    New code should preferably use:
-        reduce_stock_from_batches()
     """
 
     result = reduce_stock_from_batches(
@@ -1568,7 +1605,7 @@ def reduce_product_stock(
 
 
 # ============================================================
-# 26. LOW STOCK
+# 28. LOW STOCK
 # ============================================================
 
 def is_low_stock(product):
@@ -1597,7 +1634,7 @@ def is_low_stock(product):
 
 
 # ============================================================
-# 27. GET EXPIRING BATCHES
+# 29. GET EXPIRING BATCHES
 # ============================================================
 
 def get_expiring_batches(
@@ -1607,8 +1644,6 @@ def get_expiring_batches(
     """
     Return batches expiring within the next
     specified number of days.
-
-    Expired batches are not included here.
     """
 
     from database.models import ProductBatch
@@ -1620,6 +1655,7 @@ def get_expiring_batches(
         close_session = True
 
     try:
+
         today = date.today()
 
         limit = (
@@ -1664,10 +1700,12 @@ def get_expiring_batches(
 
 
 # ============================================================
-# 28. GET EXPIRED BATCHES
+# 30. GET EXPIRED BATCHES
 # ============================================================
 
-def get_expired_batches(db=None):
+def get_expired_batches(
+    db=None
+):
     """
     Return all active batches whose
     expiration date has passed.
@@ -1682,6 +1720,7 @@ def get_expired_batches(db=None):
         close_session = True
 
     try:
+
         today = date.today()
 
         batches = (
@@ -1717,17 +1756,16 @@ def get_expired_batches(db=None):
 
 
 # ============================================================
-# 29. DEACTIVATE EXPIRED BATCHES
+# 31. DEACTIVATE EXPIRED BATCHES
 # ============================================================
 
-def deactivate_expired_batches(db=None):
+def deactivate_expired_batches(
+    db=None
+):
     """
     Mark expired batches as inactive.
 
     Their stock is NOT deleted.
-
-    This is important because expired stock
-    should remain traceable in the database.
     """
 
     close_session = False
@@ -1737,9 +1775,13 @@ def deactivate_expired_batches(db=None):
         close_session = True
 
     try:
-        batches = get_expired_batches(db)
+
+        batches = get_expired_batches(
+            db
+        )
 
         for batch in batches:
+
             batch.is_active = False
 
         if close_session:
@@ -1761,15 +1803,48 @@ def deactivate_expired_batches(db=None):
 
 
 # ============================================================
-# 30. UPDATE OLD DATABASE SCHEMA
+# 32. EXPENSE CATEGORIES
+# ============================================================
+
+EXPENSE_CATEGORIES = [
+    "Nourriture",
+    "Transport",
+    "Fournitures",
+    "Électricité",
+    "Eau",
+    "Internet / Téléphone",
+    "Entretien",
+    "Loyer",
+    "Salaire",
+    "Taxes / Frais",
+    "Autre",
+]
+
+
+EXPENSE_PAYMENT_METHODS = [
+    "Espèces",
+    "Mobile Money",
+    "Carte bancaire",
+    "Virement",
+]
+
+
+# ============================================================
+# 33. UPDATE OLD DATABASE SCHEMA
 # ============================================================
 
 def update_database_schema():
     """
     Update an existing pharmacy database.
 
-    This function adds missing columns
-    without deleting existing data.
+    Missing columns are added without deleting data.
+
+    Important:
+    The Expense model now uses `description`.
+
+    Older versions used `title`.
+
+    Existing title values are copied into description.
     """
 
     inspector = inspect(engine)
@@ -1823,8 +1898,6 @@ def update_database_schema():
             "boxes_per_carton",
             "INTEGER DEFAULT 10",
         )
-
-        # Legacy columns
 
         add_column_if_not_exists(
             "products",
@@ -1901,7 +1974,109 @@ def update_database_schema():
         add_column_if_not_exists(
             "products",
             "created_at",
-            "DATETIME",
+            "DATE",
+        )
+
+    # ========================================================
+    # PRODUCT BATCHES
+    # ========================================================
+
+    if "product_batches" in tables:
+
+        add_column_if_not_exists(
+            "product_batches",
+            "product_id",
+            "INTEGER",
+        )
+
+        add_column_if_not_exists(
+            "product_batches",
+            "batch_number",
+            "VARCHAR(100)",
+        )
+
+        add_column_if_not_exists(
+            "product_batches",
+            "expiry_date",
+            "DATE",
+        )
+
+        add_column_if_not_exists(
+            "product_batches",
+            "stock_units",
+            "INTEGER DEFAULT 0",
+        )
+
+        add_column_if_not_exists(
+            "product_batches",
+            "purchase_quantity",
+            "INTEGER DEFAULT 0",
+        )
+
+        add_column_if_not_exists(
+            "product_batches",
+            "purchase_unit",
+            "VARCHAR(50) DEFAULT 'Boîte'",
+        )
+
+        add_column_if_not_exists(
+            "product_batches",
+            "purchase_price",
+            "FLOAT DEFAULT 0",
+        )
+
+        add_column_if_not_exists(
+            "product_batches",
+            "supplier",
+            "VARCHAR(150) DEFAULT ''",
+        )
+
+        add_column_if_not_exists(
+            "product_batches",
+            "received_at",
+            "DATE",
+        )
+
+        add_column_if_not_exists(
+            "product_batches",
+            "is_active",
+            "BOOLEAN DEFAULT 1",
+        )
+
+    # ========================================================
+    # SALES
+    # ========================================================
+
+    if "sales" in tables:
+
+        add_column_if_not_exists(
+            "sales",
+            "invoice_number",
+            "VARCHAR(80)",
+        )
+
+        add_column_if_not_exists(
+            "sales",
+            "client_name",
+            "VARCHAR(150) DEFAULT 'Client comptant'",
+        )
+
+        add_column_if_not_exists(
+            "sales",
+            "total",
+            "FLOAT DEFAULT 0",
+        )
+
+        add_column_if_not_exists(
+            "sales",
+            "payment_method",
+            "VARCHAR(50) DEFAULT 'Espèces'",
+        )
+
+        add_column_if_not_exists(
+            "sales",
+            "created_at",
+            "DATE",
         )
 
     # ========================================================
@@ -1946,35 +2121,119 @@ def update_database_schema():
             "VARCHAR(100) DEFAULT ''",
         )
 
-    # ProductBatch is created through SQLAlchemy
-    # in init_db().
-    #
-    # We intentionally do not manually create it here.
+    # ========================================================
+    # EXPENSES
+    # ========================================================
+
+    if "expenses" in tables:
+
+        # ----------------------------------------------------
+        # New column
+        # ----------------------------------------------------
+
+        add_column_if_not_exists(
+            "expenses",
+            "description",
+            "VARCHAR(200) DEFAULT ''",
+        )
+
+        add_column_if_not_exists(
+            "expenses",
+            "category",
+            "VARCHAR(100) DEFAULT 'Autre'",
+        )
+
+        add_column_if_not_exists(
+            "expenses",
+            "amount",
+            "FLOAT DEFAULT 0",
+        )
+
+        add_column_if_not_exists(
+            "expenses",
+            "expense_date",
+            "DATE",
+        )
+
+        add_column_if_not_exists(
+            "expenses",
+            "payment_method",
+            "VARCHAR(50) DEFAULT 'Espèces'",
+        )
+
+        add_column_if_not_exists(
+            "expenses",
+            "note",
+            "TEXT DEFAULT ''",
+        )
+
+        add_column_if_not_exists(
+            "expenses",
+            "created_by",
+            "VARCHAR(150) DEFAULT ''",
+        )
+
+        add_column_if_not_exists(
+            "expenses",
+            "created_at",
+            "DATETIME",
+        )
+
+        # ----------------------------------------------------
+        # Old column from previous version
+        # ----------------------------------------------------
+
+        if column_exists(
+            "expenses",
+            "title",
+        ) and column_exists(
+            "expenses",
+            "description",
+        ):
+
+            with engine.begin() as connection:
+
+                connection.execute(
+                    text(
+                        """
+                        UPDATE expenses
+                        SET description = title
+                        WHERE (
+                            description IS NULL
+                            OR TRIM(description) = ''
+                        )
+                        AND title IS NOT NULL
+                        AND TRIM(title) <> ''
+                        """
+                    )
+                )
+
+                print(
+                    "✓ Migration expenses.title "
+                    "→ expenses.description terminée."
+                )
 
 
 # ============================================================
-# 31. MIGRATE OLD STOCK
+# 34. MIGRATE OLD STOCK TO BATCHES
 # ============================================================
 
 def migrate_old_stock_to_batches():
     """
-    Migrate old Product stock into ProductBatch without loading
-    legacy DATE values through SQLAlchemy before they are normalized.
-
-    This is deliberately implemented with raw SQL for the migration
-    because old databases may contain DATETIME strings in expiry_date.
+    Migrate old Product stock into ProductBatch.
     """
+
     from database.models import ProductBatch
 
-    # IMPORTANT:
-    # Normalize legacy DATE columns before any ORM query on Product.
     normalize_legacy_date_columns()
 
     db = SessionLocal()
 
     try:
-        # Read the legacy products using raw SQL. This prevents
-        # SQLAlchemy's DATE processor from crashing on old values.
+
+        if not table_exists("products"):
+            return
+
         rows = db.execute(
             text(
                 """
@@ -1993,22 +2252,24 @@ def migrate_old_stock_to_batches():
         ).mappings().all()
 
         for row in rows:
+
             product_id = row["id"]
 
             existing_batch = (
                 db.query(ProductBatch)
                 .filter(
-                    ProductBatch.product_id == product_id
+                    ProductBatch.product_id
+                    == product_id
                 )
                 .first()
             )
 
-            # Already migrated.
             if existing_batch:
                 continue
 
             packaging = normalize_unit(
-                row["packaging"] or "Boîte"
+                row["packaging"]
+                or "Boîte"
             )
 
             stock_units = safe_int(
@@ -2021,12 +2282,11 @@ def migrate_old_stock_to_batches():
                 0,
             )
 
-            # If old stock_units is empty, reconstruct it from
-            # the old quantity and packaging.
-            if stock_units <= 0 and quantity > 0:
-                # We need a lightweight product object containing
-                # the conversion configuration. Read it directly
-                # from the database rather than ORM-loading Product.
+            if (
+                stock_units <= 0
+                and quantity > 0
+            ):
+
                 product_data = db.execute(
                     text(
                         """
@@ -2039,36 +2299,50 @@ def migrate_old_stock_to_batches():
                         WHERE id = :product_id
                         """
                     ),
-                    {"product_id": product_id},
+                    {
+                        "product_id": product_id
+                    },
                 ).mappings().first()
 
                 class LegacyProduct:
                     pass
 
-                legacy_product = LegacyProduct()
+                legacy_product = (
+                    LegacyProduct()
+                )
+
                 legacy_product.units_per_plaquette = (
-                    product_data["units_per_plaquette"]
+                    product_data[
+                        "units_per_plaquette"
+                    ]
                     if product_data
                     else 10
                 )
+
                 legacy_product.plaquettes_per_box = (
-                    product_data["plaquettes_per_box"]
+                    product_data[
+                        "plaquettes_per_box"
+                    ]
                     if product_data
                     else 10
                 )
+
                 legacy_product.boxes_per_carton = (
-                    product_data["boxes_per_carton"]
+                    product_data[
+                        "boxes_per_carton"
+                    ]
                     if product_data
                     else 10
                 )
 
-                stock_units = convert_to_base_units(
-                    legacy_product,
-                    quantity,
-                    packaging,
+                stock_units = (
+                    convert_to_base_units(
+                        legacy_product,
+                        quantity,
+                        packaging,
+                    )
                 )
 
-            # Nothing to migrate.
             if stock_units <= 0:
                 continue
 
@@ -2077,13 +2351,12 @@ def migrate_old_stock_to_batches():
                 or f"LEGACY-{product_id}"
             )
 
-            expiry_date = parse_date_safe(
-                row["expiry_date"]
+            expiry_date = (
+                parse_date_safe(
+                    row["expiry_date"]
+                )
             )
 
-            # A legacy medicine may have no expiry date because
-            # the old system did not require it. Keep the stock
-            # traceable instead of losing it during migration.
             batch = ProductBatch(
                 product_id=product_id,
                 batch_number=batch_number,
@@ -2095,7 +2368,10 @@ def migrate_old_stock_to_batches():
                     row["purchase_price"],
                     0,
                 ),
-                supplier=row["supplier"] or "",
+                supplier=(
+                    row["supplier"]
+                    or ""
+                ),
                 is_active=True,
             )
 
@@ -2108,23 +2384,22 @@ def migrate_old_stock_to_batches():
         )
 
     except Exception:
+
         db.rollback()
         raise
 
     finally:
+
         db.close()
 
 
 # ============================================================
-# 32. INITIALIZE STOCK
+# 35. INITIALIZE STOCK
 # ============================================================
 
 def initialize_stock_units():
     """
     Initialize and synchronize product stock.
-
-    This function is maintained for compatibility
-    with the previous version.
     """
 
     from database.models import Product
@@ -2162,6 +2437,7 @@ def initialize_stock_units():
                 stock_units <= 0
                 and quantity > 0
             ):
+
                 product.stock_units = (
                     convert_to_base_units(
                         product,
@@ -2191,7 +2467,7 @@ def initialize_stock_units():
 
 
 # ============================================================
-# 33. UPDATE ALL PRODUCT PRICES
+# 36. UPDATE ALL PRODUCT PRICES
 # ============================================================
 
 def update_product_prices():
@@ -2212,6 +2488,7 @@ def update_product_prices():
         )
 
         for product in products:
+
             calculate_product_prices(
                 product
             )
@@ -2229,33 +2506,979 @@ def update_product_prices():
 
 
 # ============================================================
-# 34. DATABASE INITIALIZATION
+# 37. EXPENSE MODEL ACCESS
+# ============================================================
+
+def get_expense_model():
+    """
+    Return the unique Expense ORM model.
+
+    Expense is defined ONLY in database.models.
+    """
+
+    from database.models import Expense
+
+    return Expense
+
+
+# ============================================================
+# 38. CREATE EXPENSE
+# ============================================================
+
+def create_expense(
+    title=None,
+    amount=0.0,
+    category="Autre",
+    expense_date=None,
+    payment_method="Espèces",
+    note="",
+    created_by="",
+    db=None,
+    description=None,
+):
+    """
+    Create a manual expense.
+
+    Compatibility:
+        title       = old parameter name
+        description = new parameter name
+
+    The database model uses:
+        Expense.description
+    """
+
+    Expense = get_expense_model()
+
+    # --------------------------------------------------------
+    # Compatibility title -> description
+    # --------------------------------------------------------
+
+    if description is None:
+        description = title
+
+    description = str(
+        description or ""
+    ).strip()
+
+    if not description:
+
+        raise ValueError(
+            "Le libellé de la dépense est obligatoire."
+        )
+
+    amount = safe_float(
+        amount,
+        0.0,
+    )
+
+    if amount <= 0:
+
+        raise ValueError(
+            "Le montant de la dépense doit être "
+            "supérieur à zéro."
+        )
+
+    category = str(
+        category or "Autre"
+    ).strip()
+
+    if not category:
+        category = "Autre"
+
+    payment_method = str(
+        payment_method
+        or "Espèces"
+    ).strip()
+
+    if not payment_method:
+        payment_method = "Espèces"
+
+    expense_date = parse_date_safe(
+        expense_date,
+        date.today(),
+    )
+
+    if expense_date is None:
+        expense_date = date.today()
+
+    note = str(
+        note or ""
+    ).strip()
+
+    created_by = str(
+        created_by or ""
+    ).strip()
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        expense = Expense(
+            description=description,
+            amount=round(
+                amount,
+                2,
+            ),
+            category=category,
+            expense_date=expense_date,
+            payment_method=payment_method,
+            note=note,
+            created_by=created_by,
+            created_at=datetime.now(),
+        )
+
+        db.add(expense)
+
+        db.flush()
+
+        if close_session:
+            db.commit()
+
+        return expense
+
+    except Exception:
+
+        if close_session:
+            db.rollback()
+
+        raise
+
+    finally:
+
+        if close_session:
+            db.close()
+
+
+# ============================================================
+# 39. GET EXPENSE BY ID
+# ============================================================
+
+def get_expense(
+    expense_id,
+    db=None,
+):
+    """
+    Return one expense by ID.
+    """
+
+    Expense = get_expense_model()
+
+    expense_id = safe_int(
+        expense_id,
+        0,
+    )
+
+    if expense_id <= 0:
+        return None
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        return (
+            db.query(Expense)
+            .filter(
+                Expense.id
+                == expense_id
+            )
+            .first()
+        )
+
+    finally:
+
+        if close_session:
+            db.close()
+
+
+# ============================================================
+# 40. GET ALL EXPENSES
+# ============================================================
+
+def get_expenses(
+    expense_date=None,
+    category=None,
+    search=None,
+    limit=None,
+    db=None,
+):
+    """
+    Return expenses.
+
+    Optional filters:
+        expense_date
+        category
+        search
+        limit
+    """
+
+    Expense = get_expense_model()
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        query = db.query(
+            Expense
+        )
+
+        parsed_date = parse_date_safe(
+            expense_date
+        )
+
+        if parsed_date:
+
+            query = query.filter(
+                Expense.expense_date
+                == parsed_date
+            )
+
+        if category:
+
+            category = str(
+                category
+            ).strip()
+
+            if (
+                category
+                and category != "Toutes"
+            ):
+
+                query = query.filter(
+                    Expense.category
+                    == category
+                )
+
+        if search:
+
+            search = str(
+                search
+            ).strip()
+
+            if search:
+
+                pattern = (
+                    f"%{search}%"
+                )
+
+                query = query.filter(
+                    (
+                        Expense.description.ilike(
+                            pattern
+                        )
+                    )
+                    |
+                    (
+                        Expense.note.ilike(
+                            pattern
+                        )
+                    )
+                    |
+                    (
+                        Expense.category.ilike(
+                            pattern
+                        )
+                    )
+                )
+
+        query = query.order_by(
+            Expense.expense_date.desc(),
+            Expense.created_at.desc(),
+            Expense.id.desc(),
+        )
+
+        if limit is not None:
+
+            limit = safe_int(
+                limit,
+                0,
+            )
+
+            if limit > 0:
+                query = query.limit(
+                    limit
+                )
+
+        return query.all()
+
+    finally:
+
+        if close_session:
+            db.close()
+
+
+# ============================================================
+# 41. UPDATE EXPENSE
+# ============================================================
+
+def update_expense(
+    expense_id,
+    title=None,
+    amount=None,
+    category=None,
+    expense_date=None,
+    payment_method=None,
+    note=None,
+    db=None,
+    description=None,
+):
+    """
+    Update an existing expense.
+
+    Compatibility:
+        title       = old parameter
+        description = new parameter
+    """
+
+    Expense = get_expense_model()
+
+    expense_id = safe_int(
+        expense_id,
+        0,
+    )
+
+    if expense_id <= 0:
+
+        raise ValueError(
+            "Identifiant de dépense invalide."
+        )
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        expense = (
+            db.query(Expense)
+            .filter(
+                Expense.id
+                == expense_id
+            )
+            .first()
+        )
+
+        if expense is None:
+
+            raise ValueError(
+                "Cette dépense n'existe pas."
+            )
+
+        # ----------------------------------------------------
+        # DESCRIPTION
+        # ----------------------------------------------------
+
+        if description is None:
+            description = title
+
+        if description is not None:
+
+            description = str(
+                description
+            ).strip()
+
+            if not description:
+
+                raise ValueError(
+                    "Le libellé de la dépense "
+                    "est obligatoire."
+                )
+
+            expense.description = (
+                description
+            )
+
+        # ----------------------------------------------------
+        # AMOUNT
+        # ----------------------------------------------------
+
+        if amount is not None:
+
+            amount = safe_float(
+                amount,
+                0.0,
+            )
+
+            if amount <= 0:
+
+                raise ValueError(
+                    "Le montant doit être "
+                    "supérieur à zéro."
+                )
+
+            expense.amount = round(
+                amount,
+                2,
+            )
+
+        # ----------------------------------------------------
+        # CATEGORY
+        # ----------------------------------------------------
+
+        if category is not None:
+
+            category = str(
+                category
+            ).strip()
+
+            expense.category = (
+                category
+                or "Autre"
+            )
+
+        # ----------------------------------------------------
+        # DATE
+        # ----------------------------------------------------
+
+        if expense_date is not None:
+
+            parsed_date = (
+                parse_date_safe(
+                    expense_date
+                )
+            )
+
+            if parsed_date is None:
+
+                raise ValueError(
+                    "Date de dépense invalide."
+                )
+
+            expense.expense_date = (
+                parsed_date
+            )
+
+        # ----------------------------------------------------
+        # PAYMENT
+        # ----------------------------------------------------
+
+        if payment_method is not None:
+
+            payment_method = str(
+                payment_method
+            ).strip()
+
+            expense.payment_method = (
+                payment_method
+                or "Espèces"
+            )
+
+        # ----------------------------------------------------
+        # NOTE
+        # ----------------------------------------------------
+
+        if note is not None:
+
+            expense.note = str(
+                note
+            ).strip()
+
+        expense.created_at = (
+            getattr(
+                expense,
+                "created_at",
+                None,
+            )
+            or datetime.now()
+        )
+
+        db.flush()
+
+        if close_session:
+            db.commit()
+
+        return expense
+
+    except Exception:
+
+        if close_session:
+            db.rollback()
+
+        raise
+
+    finally:
+
+        if close_session:
+            db.close()
+
+
+# ============================================================
+# 42. DELETE EXPENSE
+# ============================================================
+
+def delete_expense(
+    expense_id,
+    db=None,
+):
+    """
+    Delete an expense.
+
+    Returns:
+        True if deleted.
+    """
+
+    Expense = get_expense_model()
+
+    expense_id = safe_int(
+        expense_id,
+        0,
+    )
+
+    if expense_id <= 0:
+        return False
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        expense = (
+            db.query(Expense)
+            .filter(
+                Expense.id
+                == expense_id
+            )
+            .first()
+        )
+
+        if expense is None:
+            return False
+
+        db.delete(expense)
+
+        db.flush()
+
+        if close_session:
+            db.commit()
+
+        return True
+
+    except Exception:
+
+        if close_session:
+            db.rollback()
+
+        raise
+
+    finally:
+
+        if close_session:
+            db.close()
+
+
+# ============================================================
+# 43. DAILY EXPENSE TOTAL
+# ============================================================
+
+def get_daily_expense_total(
+    expense_date=None,
+    db=None,
+):
+    """
+    Return total expenses for one day.
+    """
+
+    Expense = get_expense_model()
+
+    expense_date = parse_date_safe(
+        expense_date,
+        date.today(),
+    )
+
+    if expense_date is None:
+        expense_date = date.today()
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        result = (
+            db.query(
+                Expense.amount
+            )
+            .filter(
+                Expense.expense_date
+                == expense_date
+            )
+            .all()
+        )
+
+        total = sum(
+            safe_float(
+                row[0],
+                0.0,
+            )
+            for row in result
+        )
+
+        return round(
+            total,
+            2,
+        )
+
+    finally:
+
+        if close_session:
+            db.close()
+
+
+# ============================================================
+# 44. MONTHLY EXPENSE TOTAL
+# ============================================================
+
+def get_monthly_expense_total(
+    year=None,
+    month=None,
+    db=None,
+):
+    """
+    Return total expenses for a month.
+    """
+
+    Expense = get_expense_model()
+
+    today = date.today()
+
+    year = safe_int(
+        year,
+        today.year,
+    )
+
+    month = safe_int(
+        month,
+        today.month,
+    )
+
+    if month < 1 or month > 12:
+        month = today.month
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        next_year = (
+            year + 1
+            if month == 12
+            else year
+        )
+
+        next_month = (
+            1
+            if month == 12
+            else month + 1
+        )
+
+        result = (
+            db.query(
+                Expense.amount
+            )
+            .filter(
+                Expense.expense_date
+                >= date(
+                    year,
+                    month,
+                    1,
+                )
+            )
+            .filter(
+                Expense.expense_date
+                < date(
+                    next_year,
+                    next_month,
+                    1,
+                )
+            )
+            .all()
+        )
+
+        total = sum(
+            safe_float(
+                row[0],
+                0.0,
+            )
+            for row in result
+        )
+
+        return round(
+            total,
+            2,
+        )
+
+    finally:
+
+        if close_session:
+            db.close()
+
+
+# ============================================================
+# 45. EXPENSE COUNT
+# ============================================================
+
+def get_expense_count(
+    expense_date=None,
+    category=None,
+    db=None,
+):
+    """
+    Count expenses.
+
+    If expense_date is supplied, only that date
+    is counted.
+    """
+
+    Expense = get_expense_model()
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        query = db.query(
+            Expense
+        )
+
+        parsed_date = parse_date_safe(
+            expense_date
+        )
+
+        if parsed_date:
+
+            query = query.filter(
+                Expense.expense_date
+                == parsed_date
+            )
+
+        if category:
+
+            category = str(
+                category
+            ).strip()
+
+            if (
+                category
+                and category != "Toutes"
+            ):
+
+                query = query.filter(
+                    Expense.category
+                    == category
+                )
+
+        return query.count()
+
+    finally:
+
+        if close_session:
+            db.close()
+
+
+# ============================================================
+# 46. EXPENSE TOTAL BY CATEGORY
+# ============================================================
+
+def get_expense_totals_by_category(
+    expense_date=None,
+    db=None,
+):
+    """
+    Return expense totals grouped by category.
+    """
+
+    Expense = get_expense_model()
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        query = db.query(
+            Expense
+        )
+
+        parsed_date = parse_date_safe(
+            expense_date
+        )
+
+        if parsed_date:
+
+            query = query.filter(
+                Expense.expense_date
+                == parsed_date
+            )
+
+        expenses = query.all()
+
+        totals = {}
+
+        for expense in expenses:
+
+            category = (
+                expense.category
+                or "Autre"
+            )
+
+            amount = safe_float(
+                expense.amount,
+                0.0,
+            )
+
+            totals[category] = round(
+                totals.get(
+                    category,
+                    0.0,
+                )
+                + amount,
+                2,
+            )
+
+        return totals
+
+    finally:
+
+        if close_session:
+            db.close()
+
+
+# ============================================================
+# 47. EXPENSE STATISTICS
+# ============================================================
+
+def get_expense_statistics(
+    expense_date=None,
+    db=None,
+):
+    """
+    Return complete expense statistics
+    for the selected day.
+    """
+
+    selected_date = (
+        parse_date_safe(
+            expense_date,
+            date.today(),
+        )
+    )
+
+    if selected_date is None:
+        selected_date = date.today()
+
+    daily_total = (
+        get_daily_expense_total(
+            selected_date,
+            db,
+        )
+    )
+
+    count = get_expense_count(
+        selected_date,
+        db=db,
+    )
+
+    by_category = (
+        get_expense_totals_by_category(
+            selected_date,
+            db,
+        )
+    )
+
+    return {
+        "date": selected_date,
+        "total": daily_total,
+        "count": count,
+        "by_category": by_category,
+    }
+
+
+# ============================================================
+# 48. EXPENSE TABLE
+# ============================================================
+
+def ensure_expense_table():
+    """
+    Ensure that the expenses table exists.
+
+    Expense is defined only in database.models.
+    """
+
+    from database.models import Expense
+
+    Base.metadata.create_all(
+        bind=engine,
+        tables=[
+            Expense.__table__,
+        ],
+    )
+
+    return True
+
+
+# ============================================================
+# 49. DATABASE INITIALIZATION
 # ============================================================
 
 def init_db():
     """
     Initialize the pharmacy database.
 
-    Steps:
-        1. Import models
-        2. Create tables
-        3. Update old schema
-        4. Migrate old stock
-        5. Initialize stock
-        6. Update prices
-        7. Create demo products if necessary
+    No demo products are created automatically.
     """
+
+    # --------------------------------------------------------
+    # Import models HERE, after Base exists.
+    # --------------------------------------------------------
 
     from database.models import (
         Product,
         ProductBatch,
         Sale,
         SaleItem,
+        Expense,
+    )
+
+    # Avoid "unused import" confusion.
+    _ = (
+        Product,
+        ProductBatch,
+        Sale,
+        SaleItem,
+        Expense,
     )
 
     print("")
     print("=" * 70)
-    print("INITIALISATION DE LA BASE DE DONNÉES")
+    print(
+        "INITIALISATION DE LA BASE DE DONNÉES"
+    )
     print("=" * 70)
 
     print(
@@ -2267,7 +3490,7 @@ def init_db():
     try:
 
         # ----------------------------------------------------
-        # CREATE TABLES
+        # CREATE ALL ORM TABLES
         # ----------------------------------------------------
 
         Base.metadata.create_all(
@@ -2279,23 +3502,64 @@ def init_db():
         )
 
         # ----------------------------------------------------
-        # UPDATE OLD DATABASE
+        # UPDATE EXISTING DATABASE
         # ----------------------------------------------------
 
         update_database_schema()
 
         # ----------------------------------------------------
-        # NORMALIZE LEGACY DATE VALUES
+        # MIGRATE OLD EXPENSE DATA
         # ----------------------------------------------------
-        # Must happen before any ORM query on Product.
-        # Old databases may contain:
-        #   2026-09-29 17:35:00.386496
-        # while the model expects:
-        #   2026-09-29
+
+        # If the old database contains:
+        #
+        # title
+        #
+        # it is copied to:
+        #
+        # description
+        #
+        # The old column is intentionally NOT deleted.
+        #
+
+        if table_exists("expenses"):
+
+            if (
+                column_exists(
+                    "expenses",
+                    "title",
+                )
+                and column_exists(
+                    "expenses",
+                    "description",
+                )
+            ):
+
+                with engine.begin() as connection:
+
+                    connection.execute(
+                        text(
+                            """
+                            UPDATE expenses
+                            SET description = title
+                            WHERE (
+                                description IS NULL
+                                OR TRIM(description) = ''
+                            )
+                            AND title IS NOT NULL
+                            AND TRIM(title) <> ''
+                            """
+                        )
+                    )
+
+        # ----------------------------------------------------
+        # NORMALIZE DATES
+        # ----------------------------------------------------
+
         normalize_legacy_date_columns()
 
         # ----------------------------------------------------
-        # CREATE NEW BATCH TABLE
+        # CREATE / VERIFY TABLES AGAIN
         # ----------------------------------------------------
 
         Base.metadata.create_all(
@@ -2304,6 +3568,10 @@ def init_db():
 
         print(
             "✓ Table ProductBatch vérifiée/créée."
+        )
+
+        print(
+            "✓ Table Dépenses vérifiée/créée."
         )
 
         # ----------------------------------------------------
@@ -2328,15 +3596,30 @@ def init_db():
         # DEACTIVATE EXPIRED BATCHES
         # ----------------------------------------------------
 
-        deactivate_expired_batches()
+        deactivated = (
+            deactivate_expired_batches()
+        )
+
+        if deactivated > 0:
+
+            print(
+                f"✓ {deactivated} lot(s) expiré(s) "
+                f"désactivé(s)."
+            )
 
         # ----------------------------------------------------
-        # SEED DEMO DATA
+        # NO DEMO DATA
         # ----------------------------------------------------
-
-        seed_products()
 
         print("")
+
+        print(
+            "✓ Aucun produit de démonstration ajouté."
+        )
+
+        print(
+            "✓ Gestion des dépenses activée."
+        )
 
         print(
             "✓ Base de données prête."
@@ -2361,196 +3644,7 @@ def init_db():
 
 
 # ============================================================
-# 35. DEMO PRODUCTS
-# ============================================================
-
-def seed_products():
-    """
-    Create demo products only if the database
-    contains no products.
-
-    Demo medicines include an expiration date
-    because expiration is mandatory for medicines.
-    """
-
-    from database.models import (
-        Product,
-        ProductBatch,
-    )
-
-    db = SessionLocal()
-
-    try:
-
-        existing_product = (
-            db.query(Product)
-            .first()
-        )
-
-        if existing_product:
-            return
-
-        # ====================================================
-        # PARACETAMOL
-        # ====================================================
-
-        paracetamol = Product(
-            name="Paracétamol 500 mg",
-            category="Antalgique",
-            base_unit="Comprimé",
-            packaging="Boîte",
-            is_medicine=True,
-            units_per_plaquette=10,
-            plaquettes_per_box=10,
-            boxes_per_carton=10,
-            quantity=0,
-            min_quantity=100,
-            stock_units=0,
-            price=3000.0,
-            price_per_comprime=30.0,
-            price_per_plaquette=300.0,
-            price_per_box=3000.0,
-            price_per_carton=30000.0,
-            supplier="Pharma Supplier",
-        )
-
-        db.add(paracetamol)
-        db.flush()
-
-        batch_paracetamol = ProductBatch(
-            product_id=paracetamol.id,
-            batch_number="PAR-2026-001",
-            expiry_date=date(
-                2027,
-                12,
-                31,
-            ),
-            stock_units=5000,
-            purchase_quantity=5,
-            purchase_unit="Carton",
-            purchase_price=25000.0,
-            supplier="Pharma Supplier",
-            is_active=True,
-        )
-
-        db.add(batch_paracetamol)
-
-        # ====================================================
-        # AMOXICILLIN
-        # ====================================================
-
-        amoxicilline = Product(
-            name="Amoxicilline 500 mg",
-            category="Antibiotique",
-            base_unit="Comprimé",
-            packaging="Boîte",
-            is_medicine=True,
-            units_per_plaquette=10,
-            plaquettes_per_box=10,
-            boxes_per_carton=10,
-            quantity=0,
-            min_quantity=100,
-            stock_units=0,
-            price=5000.0,
-            price_per_comprime=50.0,
-            price_per_plaquette=500.0,
-            price_per_box=5000.0,
-            price_per_carton=50000.0,
-            supplier="Pharma Supplier",
-        )
-
-        db.add(amoxicilline)
-        db.flush()
-
-        batch_amoxicilline = ProductBatch(
-            product_id=amoxicilline.id,
-            batch_number="AMO-2026-001",
-            expiry_date=date(
-                2028,
-                6,
-                30,
-            ),
-            stock_units=3000,
-            purchase_quantity=3,
-            purchase_unit="Carton",
-            purchase_price=42000.0,
-            supplier="Pharma Supplier",
-            is_active=True,
-        )
-
-        db.add(batch_amoxicilline)
-
-        # ====================================================
-        # VITAMIN C
-        # ====================================================
-
-        vitamine_c = Product(
-            name="Vitamine C",
-            category="Vitamines",
-            base_unit="Comprimé",
-            packaging="Boîte",
-            is_medicine=True,
-            units_per_plaquette=10,
-            plaquettes_per_box=10,
-            boxes_per_carton=10,
-            quantity=0,
-            min_quantity=100,
-            stock_units=0,
-            price=2000.0,
-            price_per_comprime=20.0,
-            price_per_plaquette=200.0,
-            price_per_box=2000.0,
-            price_per_carton=20000.0,
-            supplier="Pharma Supplier",
-        )
-
-        db.add(vitamine_c)
-        db.flush()
-
-        batch_vitamine = ProductBatch(
-            product_id=vitamine_c.id,
-            batch_number="VIT-2026-001",
-            expiry_date=date(
-                2028,
-                12,
-                31,
-            ),
-            stock_units=4000,
-            purchase_quantity=4,
-            purchase_unit="Carton",
-            purchase_price=16000.0,
-            supplier="Pharma Supplier",
-            is_active=True,
-        )
-
-        db.add(batch_vitamine)
-
-        # ====================================================
-        # COMMIT
-        # ====================================================
-
-        db.commit()
-
-        print(
-            "✓ Produits et lots de démonstration ajoutés."
-        )
-
-    except Exception as error:
-
-        db.rollback()
-
-        print(
-            "⚠ Erreur lors de l'ajout "
-            f"des produits de démonstration : {error}"
-        )
-
-    finally:
-
-        db.close()
-
-
-# ============================================================
-# 36. DATABASE INFORMATION
+# 50. DATABASE INFORMATION
 # ============================================================
 
 def get_database_path():
@@ -2558,7 +3652,9 @@ def get_database_path():
     Return database path.
     """
 
-    return str(DATABASE_PATH)
+    return str(
+        DATABASE_PATH
+    )
 
 
 def database_exists():
@@ -2570,7 +3666,7 @@ def database_exists():
 
 
 # ============================================================
-# 37. DATABASE CONNECTION TEST
+# 51. DATABASE CONNECTION TEST
 # ============================================================
 
 def test_database_connection():
@@ -2599,7 +3695,7 @@ def test_database_connection():
 
 
 # ============================================================
-# 38. GET DATABASE STATISTICS
+# 52. GET DATABASE STATISTICS
 # ============================================================
 
 def get_database_statistics():
@@ -2612,6 +3708,7 @@ def get_database_statistics():
         ProductBatch,
         Sale,
         SaleItem,
+        Expense,
     )
 
     db = SessionLocal()
@@ -2620,22 +3717,181 @@ def get_database_statistics():
 
         return {
             "products": (
-                db.query(Product).count()
+                db.query(
+                    Product
+                ).count()
             ),
+
             "batches": (
-                db.query(ProductBatch).count()
+                db.query(
+                    ProductBatch
+                ).count()
             ),
+
             "sales": (
-                db.query(Sale).count()
+                db.query(
+                    Sale
+                ).count()
             ),
+
             "sale_items": (
-                db.query(SaleItem).count()
+                db.query(
+                    SaleItem
+                ).count()
+            ),
+
+            "expenses": (
+                db.query(
+                    Expense
+                ).count()
+            ),
+
+            "expenses_today": (
+                get_daily_expense_total(
+                    db=db
+                )
+            ),
+
+            "expenses_month": (
+                get_monthly_expense_total(
+                    db=db
+                )
             ),
         }
 
     finally:
 
         db.close()
+
+
+# ============================================================
+# 53. GET FINANCIAL DAILY SUMMARY
+# ============================================================
+
+def get_daily_financial_summary(
+    selected_date=None,
+    db=None,
+):
+    """
+    Return a summary useful for the dashboard.
+
+    Includes:
+        - sales of the day
+        - expenses of the day
+        - number of expenses
+        - balance
+    """
+
+    from database.models import Sale
+
+    selected_date = parse_date_safe(
+        selected_date,
+        date.today(),
+    )
+
+    if selected_date is None:
+        selected_date = date.today()
+
+    close_session = False
+
+    if db is None:
+        db = SessionLocal()
+        close_session = True
+
+    try:
+
+        # ----------------------------------------------------
+        # SALES
+        # ----------------------------------------------------
+
+        sales = (
+            db.query(Sale)
+            .all()
+        )
+
+        sales_total = 0.0
+
+        for sale in sales:
+
+            sale_date = getattr(
+                sale,
+                "created_at",
+                None,
+            )
+
+            if sale_date:
+
+                sale_date = (
+                    parse_date_safe(
+                        sale_date
+                    )
+                )
+
+                if sale_date != selected_date:
+                    continue
+
+            else:
+                continue
+
+            sale_amount = safe_float(
+                getattr(
+                    sale,
+                    "total",
+                    0,
+                ),
+                0.0,
+            )
+
+            sales_total += (
+                sale_amount
+            )
+
+        # ----------------------------------------------------
+        # EXPENSES
+        # ----------------------------------------------------
+
+        expenses_total = (
+            get_daily_expense_total(
+                selected_date,
+                db,
+            )
+        )
+
+        expenses_count = (
+            get_expense_count(
+                selected_date,
+                db=db,
+            )
+        )
+
+        balance = (
+            sales_total
+            - expenses_total
+        )
+
+        return {
+            "date": selected_date,
+            "sales": round(
+                sales_total,
+                2,
+            ),
+            "expenses": round(
+                expenses_total,
+                2,
+            ),
+            "expenses_count": (
+                expenses_count
+            ),
+            "balance": round(
+                balance,
+                2,
+            ),
+        }
+
+    finally:
+
+        if close_session:
+            db.close()
 
 
 # ============================================================

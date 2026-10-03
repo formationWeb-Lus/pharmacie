@@ -1,4 +1,5 @@
 # ui/products.py
+from __future__ import annotations
 
 from datetime import datetime
 
@@ -30,18 +31,49 @@ from database.models import Product, ProductBatch
 
 
 # =============================================================
-# CONDITIONNEMENTS
+# CONDITIONS DISPONIBLES
 # =============================================================
 
 PACKAGING_OPTIONS = [
-    "Comprimé",
     "Plaquette",
     "Boîte",
     "Carton",
+    "Autre produit",
 ]
 
 
 class ProductsPage(QWidget):
+    """
+    Gestion des produits et médicaments.
+
+    Règles :
+
+    Tous les produits :
+        - Nom du produit
+        - Fournisseur
+
+    Plaquette :
+        - Quantité de plaquettes
+        - Prix de vente par plaquette
+        - Date d'expiration
+
+    Boîte :
+        - Nombre de boîtes
+        - Prix de vente par boîte
+        - Date d'expiration
+
+    Carton :
+        - Nombre de boîtes dans un carton
+        - Nombre de plaquettes dans une boîte
+        - Quantité de cartons
+        - Prix de vente par plaquette
+        - Date d'expiration
+
+    Autre produit :
+        - Quantité
+        - Prix de vente par unité
+        - Date d'expiration
+    """
 
     def __init__(self):
         super().__init__()
@@ -56,402 +88,246 @@ class ProductsPage(QWidget):
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.setSpacing(0)
 
-        # =========================================================
-        # SCROLL AREA
-        # =========================================================
-
         self.scroll_area = QScrollArea()
-
         self.scroll_area.setWidgetResizable(True)
-
-        self.scroll_area.setFrameShape(
-            QFrame.Shape.NoFrame
-        )
-
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll_area.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
-
         self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
 
-        self.scroll_area.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding
-        )
-
-        # =========================================================
-        # CONTENU
-        # =========================================================
-
         self.content_widget = QWidget()
-
-        self.content_widget.setObjectName(
-            "productsContent"
-        )
-
+        self.content_widget.setObjectName("productsContent")
         self.content_widget.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Minimum
+            QSizePolicy.Policy.Minimum,
         )
 
-        self.layout = QVBoxLayout(
-            self.content_widget
-        )
-
-        self.layout.setContentsMargins(
-            24,
-            24,
-            24,
-            40
-        )
-
+        self.layout = QVBoxLayout(self.content_widget)
+        self.layout.setContentsMargins(24, 24, 24, 40)
         self.layout.setSpacing(18)
 
-        self.scroll_area.setWidget(
-            self.content_widget
-        )
-
-        outer_layout.addWidget(
-            self.scroll_area
-        )
+        self.scroll_area.setWidget(self.content_widget)
+        outer_layout.addWidget(self.scroll_area)
 
         # =========================================================
         # TITRE
         # =========================================================
 
-        title = QLabel(
-            "💊 Gestion des produits pharmaceutiques"
-        )
-
-        title.setObjectName(
-            "pageTitle"
-        )
-
-        self.layout.addWidget(
-            title
-        )
-
-        # =========================================================
-        # SOUS-TITRE
-        # =========================================================
+        title = QLabel("💊 Ajout des produits")
+        title.setObjectName("pageTitle")
+        self.layout.addWidget(title)
 
         subtitle = QLabel(
-            "Gérez les médicaments, leurs conditionnements, "
-            "leurs lots, leurs prix et leurs dates d'expiration."
+            "Ajoutez les médicaments et produits avec leur fournisseur "
+            "et définissez leur conditionnement initial."
         )
-
-        subtitle.setObjectName(
-            "pageSubtitle"
-        )
-
+        subtitle.setObjectName("pageSubtitle")
         subtitle.setWordWrap(True)
-
-        self.layout.addWidget(
-            subtitle
-        )
+        self.layout.addWidget(subtitle)
 
         # =========================================================
         # CARTE FORMULAIRE
         # =========================================================
 
         form_card = QFrame()
-
-        form_card.setObjectName(
-            "formCard"
-        )
-
+        form_card.setObjectName("formCard")
         form_card.setSizePolicy(
             QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Fixed,
         )
 
-        form = QFormLayout(
-            form_card
-        )
+        form = QFormLayout(form_card)
+        form.setContentsMargins(22, 22, 22, 22)
+        form.setSpacing(14)
 
-        form.setContentsMargins(
-            22,
-            22,
-            22,
-            22
-        )
-
-        form.setSpacing(
-            14
-        )
+        self.form_layout = form
 
         # =========================================================
-        # NOM
+        # NOM DU PRODUIT
         # =========================================================
 
         self.name_in = QLineEdit()
-
         self.name_in.setPlaceholderText(
             "Ex : Paracétamol 500 mg"
         )
-
-        self.name_in.setMinimumHeight(
-            42
-        )
-
-        # =========================================================
-        # NUMÉRO DE LOT
-        # =========================================================
-
-        self.batch_in = QLineEdit()
-
-        self.batch_in.setPlaceholderText(
-            "Ex : PARA-2026-001"
-        )
-
-        self.batch_in.setMinimumHeight(
-            42
-        )
+        self.name_in.setMinimumHeight(44)
 
         # =========================================================
         # FOURNISSEUR
         # =========================================================
 
         self.supplier_in = QLineEdit()
-
         self.supplier_in.setPlaceholderText(
-            "Ex : Pharmadistribution"
+            "Ex : Pharmacie XYZ / Jean Mukendi"
         )
-
-        self.supplier_in.setMinimumHeight(
-            42
-        )
+        self.supplier_in.setMinimumHeight(44)
 
         # =========================================================
-        # CONDITIONNEMENT PRINCIPAL
+        # CONDITION INITIALE
         # =========================================================
 
         self.packaging_in = QComboBox()
-
-        self.packaging_in.addItems(
-            PACKAGING_OPTIONS
-        )
-
-        self.packaging_in.setMinimumHeight(
-            42
-        )
+        self.packaging_in.addItems(PACKAGING_OPTIONS)
+        self.packaging_in.setMinimumHeight(44)
 
         self.packaging_in.currentTextChanged.connect(
-            self.update_price_label
+            self.update_packaging_fields
         )
 
         # =========================================================
-        # COMPRIMÉS PAR PLAQUETTE
-        # =========================================================
-
-        self.units_per_plaquette_in = QSpinBox()
-
-        self.units_per_plaquette_in.setRange(
-            1,
-            1000
-        )
-
-        self.units_per_plaquette_in.setValue(
-            10
-        )
-
-        self.units_per_plaquette_in.setMinimumHeight(
-            42
-        )
-
-        # =========================================================
-        # PLAQUETTES PAR BOÎTE
-        # =========================================================
-
-        self.units_per_box_in = QSpinBox()
-
-        self.units_per_box_in.setRange(
-            1,
-            1000
-        )
-
-        self.units_per_box_in.setValue(
-            10
-        )
-
-        self.units_per_box_in.setMinimumHeight(
-            42
-        )
-
-        # =========================================================
-        # BOÎTES PAR CARTON
+        # NOMBRE DE BOÎTES DANS UN CARTON
         # =========================================================
 
         self.boxes_per_carton_in = QSpinBox()
-
-        self.boxes_per_carton_in.setRange(
-            1,
-            1000
-        )
-
-        self.boxes_per_carton_in.setValue(
-            10
-        )
-
-        self.boxes_per_carton_in.setMinimumHeight(
-            42
-        )
+        self.boxes_per_carton_in.setRange(1, 100000)
+        self.boxes_per_carton_in.setValue(1)
+        self.boxes_per_carton_in.setMinimumHeight(44)
 
         # =========================================================
-        # QUANTITÉ INITIALE
+        # NOMBRE DE PLAQUETTES DANS UNE BOÎTE
+        # =========================================================
+
+        self.units_per_box_in = QSpinBox()
+        self.units_per_box_in.setRange(1, 100000)
+        self.units_per_box_in.setValue(1)
+        self.units_per_box_in.setMinimumHeight(44)
+
+        # =========================================================
+        # QUANTITÉ
         # =========================================================
 
         self.qty_in = QSpinBox()
-
-        self.qty_in.setRange(
-            0,
-            1000000
-        )
-
-        self.qty_in.setValue(
-            1
-        )
-
-        self.qty_in.setMinimumHeight(
-            42
-        )
+        self.qty_in.setRange(1, 100000000)
+        self.qty_in.setValue(1)
+        self.qty_in.setMinimumHeight(44)
 
         # =========================================================
-        # PRIX DU CONDITIONNEMENT
+        # PRIX DE VENTE
         # =========================================================
 
         self.price_in = QDoubleSpinBox()
-
-        self.price_in.setRange(
-            0,
-            1000000000
-        )
-
-        self.price_in.setDecimals(
-            2
-        )
-
-        self.price_in.setSuffix(
-            " CDF"
-        )
-
-        self.price_in.setMinimumHeight(
-            42
-        )
+        self.price_in.setRange(0.01, 100000000000.0)
+        self.price_in.setDecimals(2)
+        self.price_in.setSuffix(" CDF")
+        self.price_in.setMinimumHeight(44)
 
         # =========================================================
-        # DATE EXPIRATION
+        # DATE D'EXPIRATION
         # =========================================================
 
         self.expiry_in = QDateEdit()
-
-        self.expiry_in.setCalendarPopup(
-            True
-        )
-
+        self.expiry_in.setCalendarPopup(True)
         self.expiry_in.setDate(
             QDate.currentDate().addYears(1)
         )
+        self.expiry_in.setDisplayFormat("dd/MM/yyyy")
+        self.expiry_in.setMinimumHeight(44)
 
-        self.expiry_in.setDisplayFormat(
-            "dd/MM/yyyy"
+        # =========================================================
+        # LABELS DYNAMIQUES
+        # =========================================================
+
+        self.label_boxes_per_carton = QLabel(
+            "Nombre de boîtes dans un carton * :"
         )
 
-        self.expiry_in.setMinimumHeight(
-            42
+        self.label_units_per_box = QLabel(
+            "Nombre de plaquettes dans une boîte * :"
+        )
+
+        self.label_quantity = QLabel(
+            "Quantité * :"
+        )
+
+        self.label_price = QLabel(
+            "Prix de vente * :"
+        )
+
+        self.label_expiry = QLabel(
+            "Date d'expiration * :"
         )
 
         # =========================================================
-        # INFORMATION CONVERSION
+        # AJOUT DES LIGNES
+        # =========================================================
+
+        form.addRow(
+            "Nom du produit / médicament * :",
+            self.name_in,
+        )
+
+        form.addRow(
+            "Nom du fournisseur * :",
+            self.supplier_in,
+        )
+
+        form.addRow(
+            "Condition initiale * :",
+            self.packaging_in,
+        )
+
+        # IMPORTANT :
+        # Pour CARTON :
+        # 1. Nombre de boîtes dans un carton
+        # 2. Nombre de plaquettes dans une boîte
+        # 3. Quantité de cartons
+        # 4. Prix de vente par plaquette
+        # 5. Date expiration
+
+        self.row_boxes_per_carton = form.rowCount()
+
+        form.addRow(
+            self.label_boxes_per_carton,
+            self.boxes_per_carton_in,
+        )
+
+        self.row_units_per_box = form.rowCount()
+
+        form.addRow(
+            self.label_units_per_box,
+            self.units_per_box_in,
+        )
+
+        self.row_quantity = form.rowCount()
+
+        form.addRow(
+            self.label_quantity,
+            self.qty_in,
+        )
+
+        self.row_price = form.rowCount()
+
+        form.addRow(
+            self.label_price,
+            self.price_in,
+        )
+
+        self.row_expiry = form.rowCount()
+
+        form.addRow(
+            self.label_expiry,
+            self.expiry_in,
+        )
+
+        # =========================================================
+        # MESSAGE CONVERSION
         # =========================================================
 
         self.conversion_label = QLabel()
-
         self.conversion_label.setObjectName(
             "conversionLabel"
         )
+        self.conversion_label.setWordWrap(True)
+        self.conversion_label.setMinimumHeight(45)
 
-        self.conversion_label.setWordWrap(
-            True
-        )
-
-        self.update_conversion_label()
-
-        self.units_per_plaquette_in.valueChanged.connect(
-            self.update_conversion_label
-        )
-
-        self.units_per_box_in.valueChanged.connect(
-            self.update_conversion_label
-        )
-
-        self.boxes_per_carton_in.valueChanged.connect(
-            self.update_conversion_label
-        )
-
-        # =========================================================
-        # CHAMPS
-        # =========================================================
-
-        form.addRow(
-            "Nom du médicament * :",
-            self.name_in
-        )
-
-        form.addRow(
-            "Numéro de lot * :",
-            self.batch_in
-        )
-
-        form.addRow(
-            "Fournisseur :",
-            self.supplier_in
-        )
-
-        form.addRow(
-            "Conditionnement initial * :",
-            self.packaging_in
-        )
-
-        form.addRow(
-            "Comprimés / plaquette :",
-            self.units_per_plaquette_in
-        )
-
-        form.addRow(
-            "Plaquettes / boîte :",
-            self.units_per_box_in
-        )
-
-        form.addRow(
-            "Boîtes / carton :",
-            self.boxes_per_carton_in
-        )
-
-        form.addRow(
-            "Quantité initiale * :",
-            self.qty_in
-        )
-
-        self.price_label = QLabel(
-            "Prix du conditionnement * :"
-        )
-
-        form.addRow(
-            self.price_label,
-            self.price_in
-        )
-
-        form.addRow(
-            "Date d'expiration * :",
-            self.expiry_in
-        )
+        self.row_conversion = form.rowCount()
 
         form.addRow(
             "",
-            self.conversion_label
+            self.conversion_label,
         )
 
         # =========================================================
@@ -459,14 +335,7 @@ class ProductsPage(QWidget):
         # =========================================================
 
         buttons_layout = QHBoxLayout()
-
-        buttons_layout.setSpacing(
-            10
-        )
-
-        # ---------------------------------------------------------
-        # ENREGISTRER
-        # ---------------------------------------------------------
+        buttons_layout.setSpacing(10)
 
         self.btn_save = QPushButton(
             "➕ Ajouter le produit"
@@ -474,36 +343,26 @@ class ProductsPage(QWidget):
 
         self.btn_save.setProperty(
             "class",
-            "btn-primary"
+            "btn-primary",
         )
 
-        self.btn_save.setMinimumHeight(
-            44
-        )
+        self.btn_save.setMinimumHeight(46)
 
         self.btn_save.clicked.connect(
             self.save_product
         )
 
-        # ---------------------------------------------------------
-        # ANNULER
-        # ---------------------------------------------------------
-
         self.btn_cancel = QPushButton(
             "↩ Annuler / Réinitialiser"
         )
 
-        self.btn_cancel.setMinimumHeight(
-            44
-        )
+        self.btn_cancel.setMinimumHeight(46)
 
         self.btn_cancel.clicked.connect(
             self.clear_form
         )
 
-        self.btn_cancel.setVisible(
-            False
-        )
+        self.btn_cancel.setVisible(False)
 
         buttons_layout.addWidget(
             self.btn_save
@@ -513,17 +372,17 @@ class ProductsPage(QWidget):
             self.btn_cancel
         )
 
+        self.row_buttons = form.rowCount()
+
         form.addRow(
             "",
-            buttons_layout
+            buttons_layout,
         )
 
-        self.layout.addWidget(
-            form_card
-        )
+        self.layout.addWidget(form_card)
 
         # =========================================================
-        # TITRE TABLEAU
+        # TABLEAU
         # =========================================================
 
         table_header = QHBoxLayout()
@@ -531,7 +390,7 @@ class ProductsPage(QWidget):
         table_title_box = QVBoxLayout()
 
         table_title = QLabel(
-            "📋 Produits et lots enregistrés"
+            "📋 Produits et stocks enregistrés"
         )
 
         table_title.setObjectName(
@@ -539,12 +398,15 @@ class ProductsPage(QWidget):
         )
 
         table_subtitle = QLabel(
-            "Chaque lot possède sa propre date d'expiration."
+            "Les produits enregistrés apparaissent ici "
+            "avec leur fournisseur, stock et date d'expiration."
         )
 
         table_subtitle.setObjectName(
             "tableSubtitle"
         )
+
+        table_subtitle.setWordWrap(True)
 
         table_title_box.addWidget(
             table_title
@@ -565,24 +427,22 @@ class ProductsPage(QWidget):
         )
 
         # =========================================================
-        # TABLEAU
+        # TABLE
         # =========================================================
 
         self.table = QTableWidget()
 
-        self.table.setColumnCount(
-            9
-        )
+        self.table.setColumnCount(9)
 
         self.table.setHorizontalHeaderLabels([
-            "Médicament",
-            "Lot",
-            "Conditionnement",
+            "Produit",
+            "Fournisseur",
+            "Condition",
             "Stock",
-            "Prix comprimé",
-            "Prix plaquette",
-            "Prix boîte",
-            "Prix carton",
+            "Prix / unité",
+            "Prix / plaquette",
+            "Prix / boîte",
+            "Prix / carton",
             "Expiration",
         ])
 
@@ -598,26 +458,13 @@ class ProductsPage(QWidget):
             QAbstractItemView.SelectionMode.SingleSelection
         )
 
-        self.table.setAlternatingRowColors(
-            True
-        )
+        self.table.setAlternatingRowColors(True)
 
-        self.table.setWordWrap(
-            False
-        )
+        self.table.setWordWrap(False)
 
-        self.table.setMinimumHeight(
-            400
-        )
+        self.table.setMinimumHeight(400)
 
-        self.table.setMaximumHeight(
-            600
-        )
-
-        self.table.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Fixed
-        )
+        self.table.setMaximumHeight(650)
 
         self.table.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
@@ -627,21 +474,21 @@ class ProductsPage(QWidget):
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
 
-        # =========================================================
-        # COLONNES
-        # =========================================================
+        self.table.itemDoubleClicked.connect(
+            self.handle_table_double_click
+        )
 
         header = self.table.horizontalHeader()
 
         header.setSectionResizeMode(
             0,
-            QHeaderView.ResizeMode.Stretch
+            QHeaderView.ResizeMode.Stretch,
         )
 
         for column in range(1, 9):
             header.setSectionResizeMode(
                 column,
-                QHeaderView.ResizeMode.ResizeToContents
+                QHeaderView.ResizeMode.ResizeToContents,
             )
 
         self.table.verticalHeader().setDefaultSectionSize(
@@ -653,30 +500,25 @@ class ProductsPage(QWidget):
         )
 
         # =========================================================
-        # INFORMATION
+        # INFO
         # =========================================================
 
         info = QLabel(
-            "💡 Le stock est enregistré en unité de base "
-            "(comprimé). Les ventes peuvent ensuite être faites "
-            "en comprimés, plaquettes, boîtes ou cartons."
+            "💡 Le prix d'achat n'est pas demandé au travailleur. "
+            "Le fournisseur est enregistré pour chaque produit."
         )
 
         info.setObjectName(
             "infoLabel"
         )
 
-        info.setWordWrap(
-            True
-        )
+        info.setWordWrap(True)
 
         self.layout.addWidget(
             info
         )
 
-        self.layout.addSpacing(
-            30
-        )
+        self.layout.addSpacing(30)
 
         # =========================================================
         # STYLE
@@ -684,9 +526,9 @@ class ProductsPage(QWidget):
 
         self.apply_styles()
 
-        # =========================================================
-        # CHARGEMENT
-        # =========================================================
+        self.update_packaging_fields(
+            self.packaging_in.currentText()
+        )
 
         self.refresh()
 
@@ -744,10 +586,6 @@ class ProductsPage(QWidget):
                 border: 1px solid #10233F;
             }
 
-            QComboBox {
-                min-height: 24px;
-            }
-
             QComboBox::drop-down {
                 border: none;
                 width: 35px;
@@ -789,14 +627,6 @@ class ProductsPage(QWidget):
 
             QPushButton[class="btn-success"]:hover {
                 background: #027A48;
-            }
-
-            QPushButton[class="btn-danger"] {
-                background: #D92D20;
-            }
-
-            QPushButton[class="btn-danger"]:hover {
-                background: #B42318;
             }
 
             QLabel#tableTitle {
@@ -878,87 +708,277 @@ class ProductsPage(QWidget):
         """)
 
     # =============================================================
-    # CALCULER UNITÉS PAR CONDITIONNEMENT
+    # VISIBILITÉ
+    # =============================================================
+
+    def set_form_row_visible(
+        self,
+        row,
+        visible,
+    ):
+        self.form_layout.setRowVisible(
+            row,
+            visible,
+        )
+
+    # =============================================================
+    # CHAMPS DYNAMIQUES
+    # =============================================================
+
+    def update_packaging_fields(
+        self,
+        packaging=None,
+    ):
+        """
+        Change les champs selon la condition initiale.
+        """
+
+        if packaging is None:
+            packaging = (
+                self.packaging_in.currentText()
+            )
+
+        packaging = packaging.strip()
+
+        # ---------------------------------------------------------
+        # LE FOURNISSEUR EST TOUJOURS VISIBLE
+        # ---------------------------------------------------------
+
+        self.set_form_row_visible(
+            self.row_boxes_per_carton,
+            packaging == "Carton",
+        )
+
+        self.set_form_row_visible(
+            self.row_units_per_box,
+            packaging == "Carton",
+        )
+
+        # ---------------------------------------------------------
+        # PLAQUETTE
+        # ---------------------------------------------------------
+
+        if packaging == "Plaquette":
+
+            self.label_quantity.setText(
+                "Nombre de plaquettes * :"
+            )
+
+            self.label_price.setText(
+                "Prix de vente / plaquette * :"
+            )
+
+            self.conversion_label.setText(
+                "💊 Condition : plaquette. "
+                "La quantité correspond directement au nombre "
+                "de plaquettes disponibles."
+            )
+
+        # ---------------------------------------------------------
+        # BOÎTE
+        # ---------------------------------------------------------
+
+        elif packaging == "Boîte":
+
+            self.label_quantity.setText(
+                "Nombre de boîtes * :"
+            )
+
+            self.label_price.setText(
+                "Prix de vente / boîte * :"
+            )
+
+            self.conversion_label.setText(
+                "📦 Condition : boîte. "
+                "La quantité correspond au nombre de boîtes."
+            )
+
+        # ---------------------------------------------------------
+        # CARTON
+        # ---------------------------------------------------------
+
+        elif packaging == "Carton":
+
+            # ORDRE EXACT DEMANDÉ :
+            #
+            # 1. Nombre de boîtes dans un carton
+            # 2. Nombre de plaquettes dans une boîte
+            # 3. Nombre de cartons
+            # 4. Prix de vente par plaquette
+            # 5. Date expiration
+
+            self.label_boxes_per_carton.setText(
+                "1. Nombre de boîtes dans un carton * :"
+            )
+
+            self.label_units_per_box.setText(
+                "2. Nombre de plaquettes dans une boîte * :"
+            )
+
+            self.label_quantity.setText(
+                "3. Nombre de cartons * :"
+            )
+
+            self.label_price.setText(
+                "4. Prix de vente / plaquette * :"
+            )
+
+            total_plaquettes = (
+                self.boxes_per_carton_in.value()
+                * self.units_per_box_in.value()
+            )
+
+            self.conversion_label.setText(
+                f"📦 1 carton = "
+                f"{self.boxes_per_carton_in.value()} boîte(s) = "
+                f"{total_plaquettes} plaquette(s). "
+                f"La quantité correspond au nombre de cartons."
+            )
+
+        # ---------------------------------------------------------
+        # AUTRE PRODUIT
+        # ---------------------------------------------------------
+
+        else:
+
+            self.label_quantity.setText(
+                "Quantité * :"
+            )
+
+            self.label_price.setText(
+                "Prix de vente / unité * :"
+            )
+
+            self.conversion_label.setText(
+                "📦 Autre produit : "
+                "fournisseur + produit + quantité + "
+                "prix par unité + date d'expiration."
+            )
+
+        self.update_conversion_label()
+
+    # =============================================================
+    # CONVERSION
+    # =============================================================
+
+    def update_conversion_label(self):
+
+        packaging = (
+            self.packaging_in.currentText().strip()
+        )
+
+        if packaging == "Plaquette":
+
+            self.conversion_label.setText(
+                "💊 La quantité saisie correspond au nombre "
+                "de plaquettes."
+            )
+
+        elif packaging == "Boîte":
+
+            self.conversion_label.setText(
+                "📦 La quantité saisie correspond au nombre "
+                "de boîtes."
+            )
+
+        elif packaging == "Carton":
+
+            boxes = max(
+                1,
+                self.boxes_per_carton_in.value(),
+            )
+
+            plaquettes = max(
+                1,
+                self.units_per_box_in.value(),
+            )
+
+            total = boxes * plaquettes
+
+            self.conversion_label.setText(
+                f"📦 1 carton = {boxes} boîte(s) = "
+                f"{total} plaquette(s). "
+                f"La quantité saisie correspond au nombre "
+                f"de cartons."
+            )
+
+        else:
+
+            self.conversion_label.setText(
+                "📦 Produit vendu directement à l'unité."
+            )
+
+    # =============================================================
+    # UNITÉS DE STOCK
     # =============================================================
 
     def get_units_per_package(
         self,
-        packaging=None
+        packaging=None,
     ):
 
         if packaging is None:
-            packaging = self.packaging_in.currentText()
+            packaging = (
+                self.packaging_in.currentText().strip()
+            )
 
-        tablets_per_blister = max(
+        plaquettes_per_box = max(
             1,
-            self.units_per_plaquette_in.value()
-        )
-
-        blisters_per_box = max(
-            1,
-            self.units_per_box_in.value()
+            self.units_per_box_in.value(),
         )
 
         boxes_per_carton = max(
             1,
-            self.boxes_per_carton_in.value()
+            self.boxes_per_carton_in.value(),
         )
 
-        if packaging == "Comprimé":
+        if packaging == "Plaquette":
             return 1
 
-        if packaging == "Plaquette":
-            return tablets_per_blister
-
         if packaging == "Boîte":
-            return (
-                tablets_per_blister
-                * blisters_per_box
-            )
+            return 1
 
         if packaging == "Carton":
             return (
-                tablets_per_blister
-                * blisters_per_box
+                plaquettes_per_box
                 * boxes_per_carton
             )
 
         return 1
 
     # =============================================================
-    # FORMAT STOCK
+    # STOCK
     # =============================================================
 
     def format_stock(
         self,
         product,
-        stock_units
+        stock_units,
     ):
 
         stock_units = int(
             stock_units or 0
         )
 
-        tablets_per_blister = max(
-            1,
-            int(
-                getattr(
-                    product,
-                    "units_per_plaquette",
-                    1
-                ) or 1
+        packaging = (
+            getattr(
+                product,
+                "packaging",
+                "Plaquette",
             )
+            or "Plaquette"
         )
 
-        blisters_per_box = max(
+        plaquettes_per_box = max(
             1,
             int(
                 getattr(
                     product,
                     "units_per_box",
-                    1
-                ) or 1
-            )
+                    1,
+                )
+                or 1
+            ),
         )
 
         boxes_per_carton = max(
@@ -967,46 +987,50 @@ class ProductsPage(QWidget):
                 getattr(
                     product,
                     "boxes_per_carton",
-                    1
-                ) or 1
+                    1,
+                )
+                or 1
+            ),
+        )
+
+        if packaging == "Autre produit":
+            return (
+                f"{stock_units} unité(s)"
             )
-        )
 
-        tablets_per_box = (
-            tablets_per_blister
-            * blisters_per_box
-        )
+        if packaging == "Plaquette":
+            return (
+                f"{stock_units} plaquette(s)"
+            )
 
-        tablets_per_carton = (
-            tablets_per_box
+        if packaging == "Boîte":
+            return (
+                f"{stock_units} boîte(s)"
+            )
+
+        plaquettes_per_carton = (
+            plaquettes_per_box
             * boxes_per_carton
         )
 
         cartons = (
             stock_units
-            // tablets_per_carton
+            // plaquettes_per_carton
         )
 
         remainder = (
             stock_units
-            % tablets_per_carton
+            % plaquettes_per_carton
         )
 
         boxes = (
             remainder
-            // tablets_per_box
+            // plaquettes_per_box
         )
 
-        remainder %= tablets_per_box
-
-        blisters = (
+        plaquettes = (
             remainder
-            // tablets_per_blister
-        )
-
-        tablets = (
-            remainder
-            % tablets_per_blister
+            % plaquettes_per_box
         )
 
         parts = []
@@ -1021,89 +1045,16 @@ class ProductsPage(QWidget):
                 f"{boxes} boîte(s)"
             )
 
-        if blisters:
+        if plaquettes:
             parts.append(
-                f"{blisters} plaquette(s)"
+                f"{plaquettes} plaquette(s)"
             )
 
-        if tablets:
-            parts.append(
-                f"{tablets} comprimé(s)"
-            )
-
-        if not parts:
-            return "0 comprimé"
-
-        return " + ".join(parts)
-
-    # =============================================================
-    # MISE À JOUR INFORMATION CONVERSION
-    # =============================================================
-
-    def update_conversion_label(self):
-
-        tablets_per_blister = (
-            self.units_per_plaquette_in.value()
+        return (
+            " + ".join(parts)
+            if parts
+            else "0 carton"
         )
-
-        blisters_per_box = (
-            self.units_per_box_in.value()
-        )
-
-        boxes_per_carton = (
-            self.boxes_per_carton_in.value()
-        )
-
-        tablets_per_box = (
-            tablets_per_blister
-            * blisters_per_box
-        )
-
-        tablets_per_carton = (
-            tablets_per_box
-            * boxes_per_carton
-        )
-
-        self.conversion_label.setText(
-            "📦 Conversion : "
-            f"1 plaquette = {tablets_per_blister} comprimés   |   "
-            f"1 boîte = {blisters_per_box} plaquette(s) = "
-            f"{tablets_per_box} comprimés   |   "
-            f"1 carton = {boxes_per_carton} boîte(s) = "
-            f"{tablets_per_carton} comprimés"
-        )
-
-    # =============================================================
-    # MISE À JOUR LABEL PRIX
-    # =============================================================
-
-    def update_price_label(
-        self,
-        packaging
-    ):
-
-        self.price_label.setText(
-            f"Prix de {packaging.lower()} * :"
-        )
-
-    # =============================================================
-    # CONVERTIR DATE
-    # =============================================================
-
-    def get_expiry_date(self):
-
-        qdate = self.expiry_in.date()
-
-        try:
-            return qdate.toPython()
-
-        except AttributeError:
-
-            return datetime(
-                qdate.year(),
-                qdate.month(),
-                qdate.day
-            ).date()
 
     # =============================================================
     # CALCUL DES PRIX
@@ -1112,46 +1063,32 @@ class ProductsPage(QWidget):
     def calculate_prices(
         self,
         packaging,
-        entered_price
+        entered_price,
     ):
 
-        tablets_per_blister = max(
+        plaquettes_per_box = max(
             1,
-            self.units_per_plaquette_in.value()
-        )
-
-        blisters_per_box = max(
-            1,
-            self.units_per_box_in.value()
+            self.units_per_box_in.value(),
         )
 
         boxes_per_carton = max(
             1,
-            self.boxes_per_carton_in.value()
+            self.boxes_per_carton_in.value(),
         )
 
-        tablets_per_box = (
-            tablets_per_blister
-            * blisters_per_box
-        )
+        # ---------------------------------------------------------
+        # PLAQUETTE
+        # ---------------------------------------------------------
 
-        tablets_per_carton = (
-            tablets_per_box
-            * boxes_per_carton
-        )
-
-        if packaging == "Comprimé":
-
-            price_per_comprime = entered_price
+        if packaging == "Plaquette":
 
             price_per_plaquette = (
-                price_per_comprime
-                * tablets_per_blister
+                entered_price
             )
 
             price_per_box = (
-                price_per_plaquette
-                * blisters_per_box
+                entered_price
+                * plaquettes_per_box
             )
 
             price_per_carton = (
@@ -1159,37 +1096,45 @@ class ProductsPage(QWidget):
                 * boxes_per_carton
             )
 
-        elif packaging == "Plaquette":
-
-            price_per_plaquette = entered_price
-
-            price_per_comprime = (
-                price_per_plaquette
-                / tablets_per_blister
-            )
-
-            price_per_box = (
-                price_per_plaquette
-                * blisters_per_box
-            )
-
-            price_per_carton = (
-                price_per_box
-                * boxes_per_carton
-            )
+        # ---------------------------------------------------------
+        # BOÎTE
+        # ---------------------------------------------------------
 
         elif packaging == "Boîte":
 
-            price_per_box = entered_price
-
-            price_per_plaquette = (
-                price_per_box
-                / blisters_per_box
+            price_per_box = (
+                entered_price
             )
 
-            price_per_comprime = (
-                price_per_plaquette
-                / tablets_per_blister
+            price_per_plaquette = (
+                entered_price
+                / max(
+                    1,
+                    plaquettes_per_box,
+                )
+            )
+
+            price_per_carton = (
+                entered_price
+                * boxes_per_carton
+            )
+
+        # ---------------------------------------------------------
+        # CARTON
+        # ---------------------------------------------------------
+
+        elif packaging == "Carton":
+
+            # L'utilisateur saisit :
+            # prix de vente par plaquette
+
+            price_per_plaquette = (
+                entered_price
+            )
+
+            price_per_box = (
+                entered_price
+                * plaquettes_per_box
             )
 
             price_per_carton = (
@@ -1197,53 +1142,85 @@ class ProductsPage(QWidget):
                 * boxes_per_carton
             )
 
+        # ---------------------------------------------------------
+        # AUTRE
+        # ---------------------------------------------------------
+
         else:
 
-            price_per_carton = entered_price
+            price_per_plaquette = (
+                entered_price
+            )
 
             price_per_box = (
-                price_per_carton
-                / boxes_per_carton
+                entered_price
             )
 
-            price_per_plaquette = (
-                price_per_box
-                / blisters_per_box
-            )
-
-            price_per_comprime = (
-                price_per_plaquette
-                / tablets_per_blister
+            price_per_carton = (
+                entered_price
             )
 
         return {
-            "price_per_comprime": price_per_comprime,
-            "price_per_plaquette": price_per_plaquette,
-            "price_per_box": price_per_box,
-            "price_per_carton": price_per_carton,
+            "price_per_comprime": entered_price,
+            "price_per_plaquette": (
+                price_per_plaquette
+            ),
+            "price_per_box": (
+                price_per_box
+            ),
+            "price_per_carton": (
+                price_per_carton
+            ),
         }
 
     # =============================================================
-    # ENREGISTRER
+    # ASSIGNATION PRIX
+    # =============================================================
+
+    def assign_product_prices(
+        self,
+        product,
+        prices,
+    ):
+
+        for field, value in prices.items():
+
+            if hasattr(product, field):
+                setattr(
+                    product,
+                    field,
+                    value,
+                )
+
+    # =============================================================
+    # ENREGISTREMENT
     # =============================================================
 
     def save_product(self):
 
-        name = self.name_in.text().strip()
+        name = (
+            self.name_in.text().strip()
+        )
 
-        batch_number = self.batch_in.text().strip()
-
-        supplier = self.supplier_in.text().strip()
+        supplier = (
+            self.supplier_in.text().strip()
+        )
 
         packaging = (
             self.packaging_in.currentText().strip()
         )
 
-        quantity = self.qty_in.value()
+        quantity = (
+            self.qty_in.value()
+        )
 
-        entered_price = self.price_in.value()
+        sale_price = (
+            self.price_in.value()
+        )
 
-        expiry_date = self.get_expiry_date()
+        expiry_date = (
+            self.get_expiry_date()
+        )
 
         # =========================================================
         # VALIDATION NOM
@@ -1254,7 +1231,7 @@ class ProductsPage(QWidget):
             QMessageBox.warning(
                 self,
                 "Champ requis",
-                "Veuillez renseigner le nom du médicament."
+                "Veuillez renseigner le nom du médicament ou du produit.",
             )
 
             self.name_in.setFocus()
@@ -1262,18 +1239,18 @@ class ProductsPage(QWidget):
             return
 
         # =========================================================
-        # VALIDATION LOT
+        # VALIDATION FOURNISSEUR
         # =========================================================
 
-        if not batch_number:
+        if not supplier:
 
             QMessageBox.warning(
                 self,
-                "Numéro de lot requis",
-                "Chaque médicament doit avoir un numéro de lot."
+                "Champ requis",
+                "Veuillez renseigner le nom du fournisseur.",
             )
 
-            self.batch_in.setFocus()
+            self.supplier_in.setFocus()
 
             return
 
@@ -1281,13 +1258,15 @@ class ProductsPage(QWidget):
         # VALIDATION QUANTITÉ
         # =========================================================
 
-        if quantity < 0:
+        if quantity <= 0:
 
             QMessageBox.warning(
                 self,
                 "Quantité invalide",
-                "La quantité ne peut pas être négative."
+                "La quantité doit être supérieure à 0.",
             )
+
+            self.qty_in.setFocus()
 
             return
 
@@ -1295,12 +1274,12 @@ class ProductsPage(QWidget):
         # VALIDATION PRIX
         # =========================================================
 
-        if entered_price <= 0:
+        if sale_price <= 0:
 
             QMessageBox.warning(
                 self,
                 "Prix invalide",
-                "Veuillez renseigner un prix supérieur à 0."
+                "Veuillez renseigner un prix de vente supérieur à 0.",
             )
 
             self.price_in.setFocus()
@@ -1308,7 +1287,45 @@ class ProductsPage(QWidget):
             return
 
         # =========================================================
-        # VALIDATION EXPIRATION
+        # CONDITIONNEMENT
+        # =========================================================
+
+        boxes_per_carton = (
+            self.boxes_per_carton_in.value()
+        )
+
+        plaquettes_per_box = (
+            self.units_per_box_in.value()
+        )
+
+        if packaging == "Carton":
+
+            if boxes_per_carton <= 0:
+
+                QMessageBox.warning(
+                    self,
+                    "Conditionnement incomplet",
+                    "Veuillez renseigner le nombre de boîtes dans le carton.",
+                )
+
+                self.boxes_per_carton_in.setFocus()
+
+                return
+
+            if plaquettes_per_box <= 0:
+
+                QMessageBox.warning(
+                    self,
+                    "Conditionnement incomplet",
+                    "Veuillez renseigner le nombre de plaquettes dans une boîte.",
+                )
+
+                self.units_per_box_in.setFocus()
+
+                return
+
+        # =========================================================
+        # DATE EXPIRATION
         # =========================================================
 
         if expiry_date <= datetime.now().date():
@@ -1316,34 +1333,23 @@ class ProductsPage(QWidget):
             reply = QMessageBox.question(
                 self,
                 "Date d'expiration",
-                (
-                    "La date d'expiration est aujourd'hui "
-                    "ou déjà dépassée.\n\n"
-                    "Voulez-vous vraiment continuer ?"
-                ),
+                "La date d'expiration est aujourd'hui "
+                "ou déjà dépassée.\n\n"
+                "Voulez-vous vraiment continuer ?",
                 QMessageBox.StandardButton.Yes
                 | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.No,
             )
 
-            if reply != QMessageBox.StandardButton.Yes:
+            if (
+                reply
+                != QMessageBox.StandardButton.Yes
+            ):
                 return
 
         # =========================================================
-        # CONVERSIONS
+        # STOCK
         # =========================================================
-
-        units_per_plaquette = (
-            self.units_per_plaquette_in.value()
-        )
-
-        units_per_box = (
-            self.units_per_box_in.value()
-        )
-
-        boxes_per_carton = (
-            self.boxes_per_carton_in.value()
-        )
 
         units_per_package = (
             self.get_units_per_package(
@@ -1356,14 +1362,12 @@ class ProductsPage(QWidget):
             * units_per_package
         )
 
-        prices = self.calculate_prices(
-            packaging,
-            entered_price
+        prices = (
+            self.calculate_prices(
+                packaging,
+                sale_price,
+            )
         )
-
-        # =========================================================
-        # DATABASE
-        # =========================================================
 
         session = SessionLocal()
 
@@ -1377,7 +1381,7 @@ class ProductsPage(QWidget):
 
                 product = session.get(
                     Product,
-                    self.selected_product_id
+                    self.selected_product_id,
                 )
 
                 if not product:
@@ -1385,105 +1389,94 @@ class ProductsPage(QWidget):
                     QMessageBox.warning(
                         self,
                         "Produit introuvable",
-                        "Le produit sélectionné n'existe plus."
+                        "Le produit sélectionné n'existe plus.",
                     )
 
                     self.clear_form()
 
                     return
 
-                # -------------------------------------------------
-                # MODIFIER LES INFORMATIONS DU PRODUIT
-                # -------------------------------------------------
-
                 product.name = name
+
                 product.packaging = packaging
 
-                # Configuration du conditionnement
-                if hasattr(
-                    product,
-                    "units_per_plaquette"
-                ):
-                    product.units_per_plaquette = (
-                        units_per_plaquette
-                    )
+                # -------------------------------------------------
+                # FOURNISSEUR
+                # -------------------------------------------------
 
                 if hasattr(
                     product,
-                    "units_per_box"
+                    "supplier",
+                ):
+                    product.supplier = supplier
+
+                # -------------------------------------------------
+                # CONDITIONNEMENT
+                # -------------------------------------------------
+
+                if hasattr(
+                    product,
+                    "units_per_plaquette",
+                ):
+                    product.units_per_plaquette = 1
+
+                if hasattr(
+                    product,
+                    "units_per_box",
                 ):
                     product.units_per_box = (
-                        units_per_box
+                        plaquettes_per_box
+                        if packaging in (
+                            "Boîte",
+                            "Carton",
+                        )
+                        else 1
                     )
 
                 if hasattr(
                     product,
-                    "boxes_per_carton"
+                    "boxes_per_carton",
                 ):
                     product.boxes_per_carton = (
                         boxes_per_carton
+                        if packaging == "Carton"
+                        else 1
                     )
-
-                # Prix
-                if hasattr(
-                    product,
-                    "price_per_comprime"
-                ):
-                    product.price_per_comprime = (
-                        prices["price_per_comprime"]
-                    )
-
-                if hasattr(
-                    product,
-                    "price_per_plaquette"
-                ):
-                    product.price_per_plaquette = (
-                        prices["price_per_plaquette"]
-                    )
-
-                if hasattr(
-                    product,
-                    "price_per_box"
-                ):
-                    product.price_per_box = (
-                        prices["price_per_box"]
-                    )
-
-                if hasattr(
-                    product,
-                    "price_per_carton"
-                ):
-                    product.price_per_carton = (
-                        prices["price_per_carton"]
-                    )
-
-                # Prix principal
-                product.price = entered_price
 
                 # -------------------------------------------------
-                # NE PAS MODIFIER DIRECTEMENT LE STOCK
+                # PRIX
                 # -------------------------------------------------
-                #
-                # Le stock réel appartient maintenant aux lots.
-                #
-                # Une modification du produit ne doit pas écraser
-                # les stocks existants.
-                #
-                # Si l'utilisateur veut ajouter du stock,
-                # cela doit passer par les achats / entrées de stock.
+
+                self.assign_product_prices(
+                    product,
+                    prices,
+                )
+
+                if hasattr(
+                    product,
+                    "price",
+                ):
+                    product.price = sale_price
+
                 # -------------------------------------------------
+                # EXPIRATION
+                # -------------------------------------------------
+
+                if hasattr(
+                    product,
+                    "expiry_date",
+                ):
+                    product.expiry_date = (
+                        expiry_date
+                    )
 
                 session.commit()
 
                 QMessageBox.information(
                     self,
                     "Succès",
-                    (
-                        "Les informations du médicament "
-                        "ont été modifiées avec succès.\n\n"
-                        "Le stock des lots existants "
-                        "n'a pas été modifié."
-                    )
+                    f"Le produit « {name} » "
+                    "a été modifié avec succès.",
                 )
 
             # =====================================================
@@ -1495,8 +1488,18 @@ class ProductsPage(QWidget):
                 product = Product(
                     name=name,
                     packaging=packaging,
-                    price=entered_price,
+                    price=sale_price,
                 )
+
+                # -------------------------------------------------
+                # FOURNISSEUR
+                # -------------------------------------------------
+
+                if hasattr(
+                    product,
+                    "supplier",
+                ):
+                    product.supplier = supplier
 
                 # -------------------------------------------------
                 # CONDITIONNEMENT
@@ -1504,138 +1507,130 @@ class ProductsPage(QWidget):
 
                 if hasattr(
                     product,
-                    "units_per_plaquette"
+                    "units_per_plaquette",
                 ):
-                    product.units_per_plaquette = (
-                        units_per_plaquette
-                    )
+                    product.units_per_plaquette = 1
 
                 if hasattr(
                     product,
-                    "units_per_box"
+                    "units_per_box",
                 ):
                     product.units_per_box = (
-                        units_per_box
+                        plaquettes_per_box
+                        if packaging in (
+                            "Boîte",
+                            "Carton",
+                        )
+                        else 1
                     )
 
                 if hasattr(
                     product,
-                    "boxes_per_carton"
+                    "boxes_per_carton",
                 ):
                     product.boxes_per_carton = (
                         boxes_per_carton
+                        if packaging == "Carton"
+                        else 1
                     )
 
                 # -------------------------------------------------
                 # PRIX
                 # -------------------------------------------------
 
-                if hasattr(
+                self.assign_product_prices(
                     product,
-                    "price_per_comprime"
-                ):
-                    product.price_per_comprime = (
-                        prices["price_per_comprime"]
-                    )
-
-                if hasattr(
-                    product,
-                    "price_per_plaquette"
-                ):
-                    product.price_per_plaquette = (
-                        prices["price_per_plaquette"]
-                    )
-
-                if hasattr(
-                    product,
-                    "price_per_box"
-                ):
-                    product.price_per_box = (
-                        prices["price_per_box"]
-                    )
-
-                if hasattr(
-                    product,
-                    "price_per_carton"
-                ):
-                    product.price_per_carton = (
-                        prices["price_per_carton"]
-                    )
-
-                # -------------------------------------------------
-                # COMPATIBILITÉ ANCIENNES COLONNES
-                # -------------------------------------------------
-
-                if hasattr(
-                    product,
-                    "quantity"
-                ):
-                    product.quantity = quantity
-
-                if hasattr(
-                    product,
-                    "stock_units"
-                ):
-                    product.stock_units = stock_units
-
-                if hasattr(
-                    product,
-                    "expiry_date"
-                ):
-                    product.expiry_date = expiry_date
-
-                if hasattr(
-                    product,
-                    "batch_number"
-                ):
-                    product.batch_number = batch_number
-
-                if hasattr(
-                    product,
-                    "supplier"
-                ):
-                    product.supplier = supplier
-
-                session.add(
-                    product
+                    prices,
                 )
+
+                # -------------------------------------------------
+                # STOCK
+                # -------------------------------------------------
+
+                if hasattr(
+                    product,
+                    "quantity",
+                ):
+                    product.quantity = (
+                        quantity
+                    )
+
+                if hasattr(
+                    product,
+                    "stock_units",
+                ):
+                    product.stock_units = (
+                        stock_units
+                    )
+
+                # -------------------------------------------------
+                # EXPIRATION
+                # -------------------------------------------------
+
+                if hasattr(
+                    product,
+                    "expiry_date",
+                ):
+                    product.expiry_date = (
+                        expiry_date
+                    )
+
+                # -------------------------------------------------
+                # LOT INTERNE
+                # -------------------------------------------------
+
+                generated_batch_number = (
+                    "AUTO-"
+                    + datetime.now().strftime(
+                        "%Y%m%d%H%M%S%f"
+                    )
+                )
+
+                if hasattr(
+                    product,
+                    "batch_number",
+                ):
+                    product.batch_number = (
+                        generated_batch_number
+                    )
+
+                session.add(product)
 
                 session.flush()
 
-                # =================================================
-                # CRÉER LE LOT
-                # =================================================
+                # -------------------------------------------------
+                # PRODUCT BATCH
+                # -------------------------------------------------
 
                 batch = ProductBatch(
                     product_id=product.id,
-                    batch_number=batch_number,
+                    batch_number=(
+                        generated_batch_number
+                    ),
                     expiry_date=expiry_date,
                     stock_units=stock_units,
                     purchase_price=0,
-                    supplier=supplier or None,
+                    supplier=supplier,
                 )
 
-                session.add(
-                    batch
-                )
+                session.add(batch)
 
                 session.commit()
+
+                # -------------------------------------------------
+                # MESSAGE
+                # -------------------------------------------------
 
                 QMessageBox.information(
                     self,
                     "Produit ajouté",
-                    (
-                        f"Le médicament « {name} » a été ajouté.\n\n"
-                        f"Lot : {batch_number}\n"
-                        f"Stock : {self.format_stock(product, stock_units)}\n"
-                        f"Expiration : "
-                        f"{expiry_date.strftime('%d/%m/%Y')}"
-                    )
+                    f"Le produit « {name} » a été ajouté avec succès.\n\n"
+                    f"Fournisseur : {supplier}\n"
+                    f"Condition : {packaging}\n"
+                    f"Quantité : {quantity}\n"
+                    f"Prix de vente : {sale_price:,.2f} CDF\n"
+                    f"Expiration : {expiry_date.strftime('%d/%m/%Y')}",
                 )
-
-            # =====================================================
-            # RESET
-            # =====================================================
 
             self.clear_form()
 
@@ -1648,10 +1643,8 @@ class ProductsPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Erreur d'enregistrement",
-                (
-                    "Impossible d'enregistrer le produit.\n\n"
-                    f"{type(error).__name__}: {error}"
-                )
+                "Impossible d'enregistrer le produit.\n\n"
+                f"{type(error).__name__}: {error}",
             )
 
         finally:
@@ -1659,12 +1652,34 @@ class ProductsPage(QWidget):
             session.close()
 
     # =============================================================
-    # CHARGER POUR MODIFICATION
+    # DATE
+    # =============================================================
+
+    def get_expiry_date(self):
+
+        qdate = (
+            self.expiry_in.date()
+        )
+
+        try:
+
+            return qdate.toPython()
+
+        except AttributeError:
+
+            return datetime(
+                qdate.year(),
+                qdate.month(),
+                qdate.day(),
+            ).date()
+
+    # =============================================================
+    # MODIFICATION
     # =============================================================
 
     def load_for_edit(
         self,
-        product_id
+        product_id,
     ):
 
         session = SessionLocal()
@@ -1673,7 +1688,7 @@ class ProductsPage(QWidget):
 
             product = session.get(
                 Product,
-                product_id
+                product_id,
             )
 
             if not product:
@@ -1681,70 +1696,76 @@ class ProductsPage(QWidget):
                 QMessageBox.warning(
                     self,
                     "Introuvable",
-                    "Ce produit n'existe plus."
+                    "Ce produit n'existe plus.",
                 )
 
                 return
 
-            self.selected_product_id = product.id
+            self.selected_product_id = (
+                product.id
+            )
 
-            # =====================================================
+            # -----------------------------------------------------
             # NOM
-            # =====================================================
+            # -----------------------------------------------------
 
             self.name_in.setText(
-                product.name or ""
+                getattr(
+                    product,
+                    "name",
+                    "",
+                )
+                or ""
             )
 
-            # =====================================================
-            # CONDITIONNEMENT
-            # =====================================================
+            # -----------------------------------------------------
+            # FOURNISSEUR
+            # -----------------------------------------------------
 
-            packaging = getattr(
-                product,
-                "packaging",
-                "Boîte"
+            self.supplier_in.setText(
+                getattr(
+                    product,
+                    "supplier",
+                    "",
+                )
+                or ""
             )
 
-            index = self.packaging_in.findText(
-                packaging
+            # -----------------------------------------------------
+            # CONDITION
+            # -----------------------------------------------------
+
+            packaging = (
+                getattr(
+                    product,
+                    "packaging",
+                    "Plaquette",
+                )
+                or "Plaquette"
             )
 
-            if index >= 0:
+            if packaging not in PACKAGING_OPTIONS:
 
-                self.packaging_in.setCurrentIndex(
-                    index
+                packaging = (
+                    "Autre produit"
                 )
 
-            # =====================================================
-            # CONFIGURATION
-            # =====================================================
-
-            self.units_per_plaquette_in.setValue(
-                max(
-                    1,
-                    int(
-                        getattr(
-                            product,
-                            "units_per_plaquette",
-                            10
-                        ) or 10
-                    )
+            index = (
+                self.packaging_in.findText(
+                    packaging
                 )
             )
 
-            self.units_per_box_in.setValue(
-                max(
-                    1,
-                    int(
-                        getattr(
-                            product,
-                            "units_per_box",
-                            10
-                        ) or 10
-                    )
-                )
+            if index < 0:
+                index = 0
+
+            self.packaging_in.setCurrentIndex(
+                index
             )
+
+            # -----------------------------------------------------
+            # BOÎTES / CARTON
+            # -----------------------------------------------------
 
             self.boxes_per_carton_in.setValue(
                 max(
@@ -1753,30 +1774,95 @@ class ProductsPage(QWidget):
                         getattr(
                             product,
                             "boxes_per_carton",
-                            10
-                        ) or 10
-                    )
+                            1,
+                        )
+                        or 1
+                    ),
                 )
             )
 
-            # =====================================================
-            # LOT
-            # =====================================================
+            # -----------------------------------------------------
+            # PLAQUETTES / BOÎTE
+            # -----------------------------------------------------
 
-            batch_number = getattr(
-                product,
-                "batch_number",
-                ""
+            self.units_per_box_in.setValue(
+                max(
+                    1,
+                    int(
+                        getattr(
+                            product,
+                            "units_per_box",
+                            1,
+                        )
+                        or 1
+                    ),
+                )
             )
 
-            # Chercher le premier lot
+            # -----------------------------------------------------
+            # PRIX
+            # -----------------------------------------------------
+
+            if packaging == "Carton":
+
+                price = getattr(
+                    product,
+                    "price_per_plaquette",
+                    getattr(
+                        product,
+                        "price",
+                        0,
+                    ),
+                ) or 0
+
+            elif packaging == "Boîte":
+
+                price = getattr(
+                    product,
+                    "price_per_box",
+                    getattr(
+                        product,
+                        "price",
+                        0,
+                    ),
+                ) or 0
+
+            else:
+
+                price = getattr(
+                    product,
+                    "price_per_plaquette",
+                    getattr(
+                        product,
+                        "price",
+                        0,
+                    ),
+                ) or 0
+
+            self.price_in.setValue(
+                float(price)
+            )
+
+            # -----------------------------------------------------
+            # EXPIRATION
+            # -----------------------------------------------------
+
+            expiry_date = getattr(
+                product,
+                "expiry_date",
+                None,
+            )
+
             batches = (
-                session.query(ProductBatch)
+                session.query(
+                    ProductBatch
+                )
                 .filter(
-                    ProductBatch.product_id == product.id
+                    ProductBatch.product_id
+                    == product.id
                 )
                 .order_by(
-                    ProductBatch.id.desc()
+                    ProductBatch.expiry_date.asc()
                 )
                 .all()
             )
@@ -1785,82 +1871,28 @@ class ProductsPage(QWidget):
 
                 batch = batches[0]
 
-                batch_number = (
-                    batch.batch_number
-                    or batch_number
-                    or ""
-                )
-
                 if batch.expiry_date:
-
-                    self.expiry_in.setDate(
-                        QDate(
-                            batch.expiry_date.year,
-                            batch.expiry_date.month,
-                            batch.expiry_date.day
-                        )
+                    expiry_date = (
+                        batch.expiry_date
                     )
 
-                self.supplier_in.setText(
-                    batch.supplier or ""
-                )
+            if expiry_date:
 
-            else:
-
-                self.supplier_in.setText(
-                    getattr(
-                        product,
-                        "supplier",
-                        ""
-                    ) or ""
-                )
-
-                if product.expiry_date:
-
-                    self.expiry_in.setDate(
-                        QDate(
-                            product.expiry_date.year,
-                            product.expiry_date.month,
-                            product.expiry_date.day
-                        )
+                self.expiry_in.setDate(
+                    QDate(
+                        expiry_date.year,
+                        expiry_date.month,
+                        expiry_date.day,
                     )
+                )
 
-            self.batch_in.setText(
-                batch_number
+            self.update_packaging_fields(
+                packaging
             )
 
-            # =====================================================
-            # PRIX
-            # =====================================================
-
-            price = getattr(
-                product,
-                "price",
-                0
-            ) or 0
-
-            self.price_in.setValue(
-                float(price)
-            )
-
-            # =====================================================
-            # QUANTITÉ
-            # =====================================================
-            #
-            # Pour une modification, on ne recharge pas le stock
-            # comme une nouvelle entrée.
-            #
-            # On affiche 0 afin d'éviter de réinjecter le stock
-            # existant si l'utilisateur sauvegarde.
-            # =====================================================
-
-            self.qty_in.setValue(
-                0
-            )
-
-            # =====================================================
+            # -----------------------------------------------------
             # BOUTON
-            # =====================================================
+            # -----------------------------------------------------
 
             self.btn_save.setText(
                 "✓ Enregistrer les modifications"
@@ -1868,7 +1900,7 @@ class ProductsPage(QWidget):
 
             self.btn_save.setProperty(
                 "class",
-                "btn-success"
+                "btn-success",
             )
 
             self.btn_save.style().unpolish(
@@ -1883,10 +1915,6 @@ class ProductsPage(QWidget):
                 True
             )
 
-            # =====================================================
-            # REMONTER
-            # =====================================================
-
             self.scroll_area.verticalScrollBar().setValue(
                 0
             )
@@ -1896,10 +1924,8 @@ class ProductsPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Erreur",
-                (
-                    "Impossible de charger le produit.\n\n"
-                    f"{type(error).__name__}: {error}"
-                )
+                "Impossible de charger le produit.\n\n"
+                f"{type(error).__name__}: {error}",
             )
 
         finally:
@@ -1907,29 +1933,28 @@ class ProductsPage(QWidget):
             session.close()
 
     # =============================================================
-    # SUPPRIMER
+    # SUPPRESSION
     # =============================================================
 
     def delete_product(
         self,
-        product_id
+        product_id,
     ):
 
         reply = QMessageBox.question(
             self,
             "Confirmation",
-            (
-                "Êtes-vous sûr de vouloir supprimer ce médicament ?\n\n"
-                "Tous ses lots seront également supprimés.\n\n"
-                "Cette opération peut être irréversible."
-            ),
+            "Êtes-vous sûr de vouloir supprimer ce produit ?\n\n"
+            "Tous ses lots seront également supprimés.",
             QMessageBox.StandardButton.Yes
             | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.No,
         )
 
-        if reply != QMessageBox.StandardButton.Yes:
-
+        if (
+            reply
+            != QMessageBox.StandardButton.Yes
+        ):
             return
 
         session = SessionLocal()
@@ -1938,42 +1963,30 @@ class ProductsPage(QWidget):
 
             product = session.get(
                 Product,
-                product_id
+                product_id,
             )
 
             if not product:
-
-                QMessageBox.warning(
-                    self,
-                    "Introuvable",
-                    "Le produit n'existe plus."
-                )
 
                 self.refresh()
 
                 return
 
-            # =====================================================
-            # SUPPRESSION DES LOTS
-            # =====================================================
-
             batches = (
-                session.query(ProductBatch)
+                session.query(
+                    ProductBatch
+                )
                 .filter(
-                    ProductBatch.product_id == product.id
+                    ProductBatch.product_id
+                    == product.id
                 )
                 .all()
             )
 
             for batch in batches:
-
                 session.delete(
                     batch
                 )
-
-            # =====================================================
-            # SUPPRESSION PRODUIT
-            # =====================================================
 
             session.delete(
                 product
@@ -1984,10 +1997,7 @@ class ProductsPage(QWidget):
             QMessageBox.information(
                 self,
                 "Produit supprimé",
-                (
-                    "Le médicament et ses lots "
-                    "ont été supprimés avec succès."
-                )
+                "Le produit et ses lots ont été supprimés avec succès.",
             )
 
             self.refresh()
@@ -1999,10 +2009,8 @@ class ProductsPage(QWidget):
             QMessageBox.critical(
                 self,
                 "Erreur",
-                (
-                    "Impossible de supprimer le produit.\n\n"
-                    f"{type(error).__name__}: {error}"
-                )
+                "Impossible de supprimer le produit.\n\n"
+                f"{type(error).__name__}: {error}",
             )
 
         finally:
@@ -2010,63 +2018,50 @@ class ProductsPage(QWidget):
             session.close()
 
     # =============================================================
-    # RESET
+    # RÉINITIALISATION
     # =============================================================
 
     def clear_form(self):
 
         self.selected_product_id = None
 
-        # Nom
         self.name_in.clear()
 
-        # Lot
-        self.batch_in.clear()
-
-        # Fournisseur
         self.supplier_in.clear()
 
-        # Conditionnement
         self.packaging_in.setCurrentIndex(
             0
         )
 
-        # Conversion
-        self.units_per_plaquette_in.setValue(
-            10
+        self.boxes_per_carton_in.setValue(
+            1
         )
 
         self.units_per_box_in.setValue(
-            10
+            1
         )
 
-        self.boxes_per_carton_in.setValue(
-            10
-        )
-
-        # Quantité
         self.qty_in.setValue(
             1
         )
 
-        # Prix
         self.price_in.setValue(
-            0
+            0.01
         )
 
-        # Date
         self.expiry_in.setDate(
-            QDate.currentDate().addYears(1)
+            QDate.currentDate().addYears(
+                1
+            )
         )
 
-        # Bouton
         self.btn_save.setText(
             "➕ Ajouter le produit"
         )
 
         self.btn_save.setProperty(
             "class",
-            "btn-primary"
+            "btn-primary",
         )
 
         self.btn_save.style().unpolish(
@@ -2077,15 +2072,16 @@ class ProductsPage(QWidget):
             self.btn_save
         )
 
-        # Cacher annuler
         self.btn_cancel.setVisible(
             False
         )
 
-        self.update_conversion_label()
+        self.update_packaging_fields(
+            self.packaging_in.currentText()
+        )
 
     # =============================================================
-    # ACTUALISER TABLEAU
+    # TABLEAU
     # =============================================================
 
     def refresh(self):
@@ -2108,14 +2104,13 @@ class ProductsPage(QWidget):
 
             for product in products:
 
-                # =================================================
-                # LOTS
-                # =================================================
-
                 batches = (
-                    session.query(ProductBatch)
+                    session.query(
+                        ProductBatch
+                    )
                     .filter(
-                        ProductBatch.product_id == product.id
+                        ProductBatch.product_id
+                        == product.id
                     )
                     .order_by(
                         ProductBatch.expiry_date.asc()
@@ -2123,39 +2118,29 @@ class ProductsPage(QWidget):
                     .all()
                 )
 
-                # -------------------------------------------------
-                # Si aucun lot
-                # -------------------------------------------------
-
                 if not batches:
 
                     self.add_product_row(
                         product,
-                        None
+                        None,
                     )
 
-                    continue
+                else:
 
-                # -------------------------------------------------
-                # Un médicament peut avoir plusieurs lots
-                # -------------------------------------------------
+                    for batch in batches:
 
-                for batch in batches:
-
-                    self.add_product_row(
-                        product,
-                        batch
-                    )
+                        self.add_product_row(
+                            product,
+                            batch,
+                        )
 
         except Exception as error:
 
             QMessageBox.critical(
                 self,
                 "Erreur",
-                (
-                    "Impossible de charger les produits.\n\n"
-                    f"{type(error).__name__}: {error}"
-                )
+                "Impossible de charger les produits.\n\n"
+                f"{type(error).__name__}: {error}",
             )
 
         finally:
@@ -2163,80 +2148,74 @@ class ProductsPage(QWidget):
             session.close()
 
     # =============================================================
-    # AJOUTER UNE LIGNE
+    # AJOUT LIGNE TABLEAU
     # =============================================================
 
     def add_product_row(
         self,
         product,
-        batch
+        batch,
     ):
 
-        row = self.table.rowCount()
+        row = (
+            self.table.rowCount()
+        )
 
         self.table.insertRow(
             row
         )
 
-        # =========================================================
-        # NOM
-        # =========================================================
-
-        name_item = QTableWidgetItem(
-            product.name or ""
-        )
+        # ---------------------------------------------------------
+        # PRODUIT
+        # ---------------------------------------------------------
 
         self.table.setItem(
             row,
             0,
-            name_item
+            QTableWidgetItem(
+                getattr(
+                    product,
+                    "name",
+                    "",
+                )
+                or ""
+            ),
         )
 
-        # =========================================================
-        # LOT
-        # =========================================================
-
-        if batch:
-
-            batch_number = (
-                batch.batch_number
-                or "N/A"
-            )
-
-        else:
-
-            batch_number = getattr(
-                product,
-                "batch_number",
-                None
-            ) or "N/A"
-
-        batch_item = QTableWidgetItem(
-            batch_number
-        )
-
-        batch_item.setTextAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
+        # ---------------------------------------------------------
+        # FOURNISSEUR
+        # ---------------------------------------------------------
 
         self.table.setItem(
             row,
             1,
-            batch_item
+            QTableWidgetItem(
+                getattr(
+                    product,
+                    "supplier",
+                    "",
+                )
+                or ""
+            ),
         )
 
-        # =========================================================
-        # CONDITIONNEMENT
-        # =========================================================
+        # ---------------------------------------------------------
+        # CONDITION
+        # ---------------------------------------------------------
 
-        packaging = getattr(
-            product,
-            "packaging",
-            "N/A"
-        ) or "N/A"
+        packaging = (
+            getattr(
+                product,
+                "packaging",
+                "Autre produit",
+            )
+            or "Autre produit"
+        )
 
-        packaging_item = QTableWidgetItem(
-            packaging
+        packaging_item = (
+            QTableWidgetItem(
+                packaging
+            )
         )
 
         packaging_item.setTextAlignment(
@@ -2246,36 +2225,33 @@ class ProductsPage(QWidget):
         self.table.setItem(
             row,
             2,
-            packaging_item
+            packaging_item,
         )
 
-        # =========================================================
+        # ---------------------------------------------------------
         # STOCK
-        # =========================================================
+        # ---------------------------------------------------------
 
-        if batch:
-
-            stock_units = int(
-                batch.stock_units or 0
-            )
-
-        else:
-
-            stock_units = int(
-                getattr(
+        stock_units = int(
+            (
+                batch.stock_units
+                if batch is not None
+                else getattr(
                     product,
                     "stock_units",
-                    0
-                ) or 0
+                    0,
+                )
             )
-
-        stock_text = self.format_stock(
-            product,
-            stock_units
+            or 0
         )
 
-        stock_item = QTableWidgetItem(
-            stock_text
+        stock_item = (
+            QTableWidgetItem(
+                self.format_stock(
+                    product,
+                    stock_units,
+                )
+            )
         )
 
         stock_item.setTextAlignment(
@@ -2285,129 +2261,121 @@ class ProductsPage(QWidget):
         self.table.setItem(
             row,
             3,
-            stock_item
+            stock_item,
         )
 
-        # =========================================================
-        # PRIX COMPRIMÉ
-        # =========================================================
+        # ---------------------------------------------------------
+        # PRIX UNITÉ
+        # ---------------------------------------------------------
 
-        price_comprime = float(
+        price_unite = float(
             getattr(
                 product,
                 "price_per_comprime",
-                0
-            ) or 0
+                0,
+            )
+            or 0
         )
 
-        if price_comprime <= 0:
+        if price_unite <= 0:
 
-            # Compatibilité ancienne base
-            price_comprime = float(
+            price_unite = float(
                 getattr(
                     product,
                     "price",
-                    0
-                ) or 0
+                    0,
+                )
+                or 0
             )
 
         self.set_price_item(
             row,
             4,
-            price_comprime
+            price_unite,
         )
 
-        # =========================================================
+        # ---------------------------------------------------------
         # PRIX PLAQUETTE
-        # =========================================================
-
-        price_plaquette = float(
-            getattr(
-                product,
-                "price_per_plaquette",
-                0
-            ) or 0
-        )
+        # ---------------------------------------------------------
 
         self.set_price_item(
             row,
             5,
-            price_plaquette
+            float(
+                getattr(
+                    product,
+                    "price_per_plaquette",
+                    0,
+                )
+                or 0
+            ),
         )
 
-        # =========================================================
+        # ---------------------------------------------------------
         # PRIX BOÎTE
-        # =========================================================
-
-        price_box = float(
-            getattr(
-                product,
-                "price_per_box",
-                0
-            ) or 0
-        )
+        # ---------------------------------------------------------
 
         self.set_price_item(
             row,
             6,
-            price_box
+            float(
+                getattr(
+                    product,
+                    "price_per_box",
+                    0,
+                )
+                or 0
+            ),
         )
 
-        # =========================================================
+        # ---------------------------------------------------------
         # PRIX CARTON
-        # =========================================================
-
-        price_carton = float(
-            getattr(
-                product,
-                "price_per_carton",
-                0
-            ) or 0
-        )
+        # ---------------------------------------------------------
 
         self.set_price_item(
             row,
             7,
-            price_carton
+            float(
+                getattr(
+                    product,
+                    "price_per_carton",
+                    0,
+                )
+                or 0
+            ),
         )
 
-        # =========================================================
+        # ---------------------------------------------------------
         # EXPIRATION
-        # =========================================================
+        # ---------------------------------------------------------
 
-        expiry_date = None
-
-        if batch:
-
-            expiry_date = batch.expiry_date
-
-        if not expiry_date:
-
-            expiry_date = getattr(
+        expiry_date = (
+            batch.expiry_date
+            if batch is not None
+            else getattr(
                 product,
                 "expiry_date",
-                None
+                None,
             )
+        )
 
         if expiry_date:
 
-            expiry_text = expiry_date.strftime(
-                "%d/%m/%Y"
+            expiry_text = (
+                expiry_date.strftime(
+                    "%d/%m/%Y"
+                )
             )
 
-            expiry_item = QTableWidgetItem(
-                expiry_text
+            expiry_item = (
+                QTableWidgetItem(
+                    expiry_text
+                )
             )
 
-            expiry_item.setTextAlignment(
-                Qt.AlignmentFlag.AlignCenter
+            today = (
+                datetime.now().date()
             )
-
-            # -----------------------------------------------------
-            # COULEUR EXPIRATION
-            # -----------------------------------------------------
-
-            today = datetime.now().date()
 
             if expiry_date < today:
 
@@ -2415,46 +2383,36 @@ class ProductsPage(QWidget):
                     f"🔴 {expiry_text}"
                 )
 
+            elif (
+                expiry_date - today
+            ).days <= 90:
+
+                expiry_item.setText(
+                    f"🟠 {expiry_text}"
+                )
+
             else:
 
-                days = (
-                    expiry_date - today
-                ).days
-
-                if days <= 90:
-
-                    expiry_item.setText(
-                        f"🟠 {expiry_text}"
-                    )
-
-                else:
-
-                    expiry_item.setText(
-                        f"🟢 {expiry_text}"
-                    )
+                expiry_item.setText(
+                    f"🟢 {expiry_text}"
+                )
 
         else:
 
-            expiry_item = QTableWidgetItem(
-                "⚠️ N/A"
+            expiry_item = (
+                QTableWidgetItem(
+                    "⚠️ N/A"
+                )
             )
 
-            expiry_item.setTextAlignment(
-                Qt.AlignmentFlag.AlignCenter
-            )
+        expiry_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
 
         self.table.setItem(
             row,
             8,
-            expiry_item
-        )
-
-        # =========================================================
-        # DOUBLE-CLICK POUR MODIFIER
-        # =========================================================
-
-        self.table.itemDoubleClicked.connect(
-            self.handle_table_double_click
+            expiry_item,
         )
 
     # =============================================================
@@ -2465,7 +2423,7 @@ class ProductsPage(QWidget):
         self,
         row,
         column,
-        price
+        price,
     ):
 
         item = QTableWidgetItem(
@@ -2479,16 +2437,16 @@ class ProductsPage(QWidget):
         self.table.setItem(
             row,
             column,
-            item
+            item,
         )
 
     # =============================================================
-    # DOUBLE CLICK
+    # DOUBLE CLIC
     # =============================================================
 
     def handle_table_double_click(
         self,
-        item
+        item,
     ):
 
         row = item.row()
@@ -2496,15 +2454,22 @@ class ProductsPage(QWidget):
         if row < 0:
             return
 
-        name_item = self.table.item(
-            row,
-            0
+        name_item = (
+            self.table.item(
+                row,
+                0,
+            )
         )
 
         if not name_item:
             return
 
-        name = name_item.text()
+        name = (
+            name_item.text().strip()
+        )
+
+        if not name:
+            return
 
         session = SessionLocal()
 
@@ -2526,6 +2491,15 @@ class ProductsPage(QWidget):
                 self.load_for_edit(
                     product.id
                 )
+
+        except Exception as error:
+
+            QMessageBox.critical(
+                self,
+                "Erreur",
+                "Impossible d'ouvrir le produit.\n\n"
+                f"{type(error).__name__}: {error}",
+            )
 
         finally:
 

@@ -19,8 +19,6 @@ from PySide6.QtWidgets import (
 
 from database.database import (
     SessionLocal,
-    get_stock_display,
-    get_price_for_packaging,
     is_low_stock,
 )
 
@@ -32,28 +30,66 @@ from database.models import (
 
 class StockPage(QWidget):
     """
-    Page de gestion des stocks de la pharmacie.
+    Page professionnelle de gestion des stocks.
 
-    Nouveau système :
+    Nouvelle logique :
 
-    - Le stock est géré par LOT.
-    - Chaque lot possède sa propre date d'expiration.
-    - Un médicament peut avoir plusieurs lots.
-    - Le stock total d'un médicament correspond à la somme
-      des stocks de tous ses lots.
-    - Les lots sont affichés séparément.
-    - Les dates d'expiration sont contrôlées lot par lot.
-    - Les lots expirés sont signalés.
-    - Les lots proches de l'expiration sont signalés.
-    - Le stock faible est contrôlé.
-    - Le stock est affiché avec :
-        Carton
-        Boîte
-        Plaquette
-        Comprimé
+    ------------------------------------------------------------
+    CARTON
+    ------------------------------------------------------------
+    1. Nombre de boîtes dans un carton
+    2. Nombre de plaquettes dans une boîte
+    3. Nombre de cartons
+    4. Prix de vente par plaquette
+    5. Date d'expiration
 
-    Le système est compatible avec le fonctionnement FEFO :
-    First Expired, First Out.
+    Exemple :
+
+        5 boîtes / carton
+        10 plaquettes / boîte
+        2 cartons
+
+    Donc :
+
+        1 carton = 50 plaquettes
+        2 cartons = 100 plaquettes
+
+    Prix :
+
+        500 CDF / plaquette
+        5 000 CDF / boîte
+        25 000 CDF / carton
+
+    ------------------------------------------------------------
+    BOÎTE
+    ------------------------------------------------------------
+
+        quantité = nombre de boîtes
+        prix = prix de vente par boîte
+
+    ------------------------------------------------------------
+    PLAQUETTE
+    ------------------------------------------------------------
+
+        quantité = nombre de plaquettes
+        prix = prix de vente par plaquette
+
+    ------------------------------------------------------------
+    AUTRE PRODUIT
+    ------------------------------------------------------------
+
+        quantité = quantité du produit
+        prix = prix de vente unitaire
+
+    ------------------------------------------------------------
+
+    Les stocks par lots sont conservés.
+
+    Le stock d'un médicament peut donc être réparti
+    sur plusieurs lots avec des dates d'expiration différentes.
+
+    Le système affiche les lots par ordre d'expiration
+    afin de respecter le principe FEFO.
     """
 
     EXPIRY_WARNING_DAYS = 90
@@ -88,9 +124,7 @@ class StockPage(QWidget):
             "stockScrollArea"
         )
 
-        self.scroll_area.setWidgetResizable(
-            True
-        )
+        self.scroll_area.setWidgetResizable(True)
 
         self.scroll_area.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
@@ -114,12 +148,10 @@ class StockPage(QWidget):
             "stockPageContainer"
         )
 
-        self.page_container.setMinimumWidth(
-            850
-        )
+        self.page_container.setMinimumWidth(1100)
 
         # ============================================================
-        # LAYOUT PRINCIPAL
+        # LAYOUT
         # ============================================================
 
         layout = QVBoxLayout(
@@ -133,9 +165,7 @@ class StockPage(QWidget):
             35,
         )
 
-        layout.setSpacing(
-            18
-        )
+        layout.setSpacing(18)
 
         self.scroll_area.setWidget(
             self.page_container
@@ -158,25 +188,18 @@ class StockPage(QWidget):
         )
 
         subtitle = QLabel(
-            "Suivi des médicaments, des lots, des quantités "
-            "et des dates d'expiration"
+            "Suivi des produits, fournisseurs, lots, "
+            "conditionnements, prix et dates d'expiration"
         )
 
         subtitle.setObjectName(
             "pageSubtitle"
         )
 
-        subtitle.setWordWrap(
-            True
-        )
+        subtitle.setWordWrap(True)
 
-        layout.addWidget(
-            title
-        )
-
-        layout.addWidget(
-            subtitle
-        )
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
 
         # ============================================================
         # CARTES STATISTIQUES
@@ -184,12 +207,10 @@ class StockPage(QWidget):
 
         stats_layout = QHBoxLayout()
 
-        stats_layout.setSpacing(
-            15
-        )
+        stats_layout.setSpacing(15)
 
         self.card_total = self._create_stat_card(
-            "Médicaments",
+            "Produits",
             "0",
             "#2563EB",
             "📦",
@@ -210,7 +231,7 @@ class StockPage(QWidget):
         )
 
         self.card_warning = self._create_stat_card(
-            "Expirent bientôt",
+            "Expiration proche",
             "0",
             "#D97706",
             "⚠️",
@@ -268,12 +289,10 @@ class StockPage(QWidget):
             12,
         )
 
-        search_layout.setSpacing(
-            7
-        )
+        search_layout.setSpacing(7)
 
         search_label = QLabel(
-            "Rechercher un médicament ou un lot"
+            "Rechercher un produit, fournisseur ou lot"
         )
 
         search_label.setObjectName(
@@ -283,7 +302,7 @@ class StockPage(QWidget):
         self.search_input = QLineEdit()
 
         self.search_input.setPlaceholderText(
-            "🔍 Rechercher par nom ou numéro de lot..."
+            "🔍 Nom du produit, fournisseur ou numéro de lot..."
         )
 
         self.search_input.setClearButtonEnabled(
@@ -316,26 +335,24 @@ class StockPage(QWidget):
             "stockTable"
         )
 
-        self.table.setColumnCount(
-            8
-        )
+        self.table.setColumnCount(10)
 
         self.table.setHorizontalHeaderLabels(
             [
-                "Médicament",
-                "Lot",
-                "Stock",
-                "Prix Vente",
+                "Produit",
+                "Fournisseur",
+                "Condition",
+                "Configuration",
+                "Stock réel",
+                "Prix / plaquette",
+                "Prix / boîte",
+                "Prix / carton",
                 "Expiration",
                 "État",
-                "Stock faible",
-                "Fournisseur",
             ]
         )
 
-        self.table.setAlternatingRowColors(
-            True
-        )
+        self.table.setAlternatingRowColors(True)
 
         self.table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -349,15 +366,9 @@ class StockPage(QWidget):
             QTableWidget.EditTrigger.NoEditTriggers
         )
 
-        self.table.verticalHeader().setVisible(
-            False
-        )
+        self.table.verticalHeader().setVisible(False)
 
-        self.table.setMinimumHeight(
-            450
-        )
-
-        # Le scroll est assuré par la page principale.
+        self.table.setMinimumHeight(450)
 
         self.table.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
@@ -378,40 +389,11 @@ class StockPage(QWidget):
             QHeaderView.ResizeMode.Stretch,
         )
 
-        header.setSectionResizeMode(
-            1,
-            QHeaderView.ResizeMode.ResizeToContents,
-        )
-
-        header.setSectionResizeMode(
-            2,
-            QHeaderView.ResizeMode.ResizeToContents,
-        )
-
-        header.setSectionResizeMode(
-            3,
-            QHeaderView.ResizeMode.ResizeToContents,
-        )
-
-        header.setSectionResizeMode(
-            4,
-            QHeaderView.ResizeMode.ResizeToContents,
-        )
-
-        header.setSectionResizeMode(
-            5,
-            QHeaderView.ResizeMode.ResizeToContents,
-        )
-
-        header.setSectionResizeMode(
-            6,
-            QHeaderView.ResizeMode.ResizeToContents,
-        )
-
-        header.setSectionResizeMode(
-            7,
-            QHeaderView.ResizeMode.ResizeToContents,
-        )
+        for index in range(1, 10):
+            header.setSectionResizeMode(
+                index,
+                QHeaderView.ResizeMode.ResizeToContents,
+            )
 
         layout.addWidget(
             self.table
@@ -422,27 +404,26 @@ class StockPage(QWidget):
         # ============================================================
 
         footer = QLabel(
-            "💡 Le stock est géré par lot. "
-            "Lors d'une vente, le système utilise en priorité "
-            "le lot dont la date d'expiration est la plus proche "
-            "(FEFO). Les médicaments expirés ne doivent pas être vendus."
+            "💡 Les stocks sont conservés par lot. "
+            "Pour les produits conditionnés en carton, "
+            "la configuration est affichée avec le nombre "
+            "de boîtes par carton et de plaquettes par boîte. "
+            "Les lots arrivant à expiration sont signalés "
+            "et les lots les plus proches de l'expiration "
+            "doivent être utilisés en priorité."
         )
 
         footer.setObjectName(
             "stockFooter"
         )
 
-        footer.setWordWrap(
-            True
-        )
+        footer.setWordWrap(True)
 
         layout.addWidget(
             footer
         )
 
-        layout.addSpacing(
-            20
-        )
+        layout.addSpacing(20)
 
         # ============================================================
         # STYLE
@@ -456,9 +437,9 @@ class StockPage(QWidget):
 
         self.refresh()
 
-    # ================================================================
+    # =================================================================
     # CARTE STATISTIQUE
-    # ================================================================
+    # =================================================================
 
     def _create_stat_card(
         self,
@@ -473,13 +454,9 @@ class StockPage(QWidget):
             "statCard"
         )
 
-        card.setMinimumHeight(
-            115
-        )
+        card.setMinimumHeight(115)
 
-        card_layout = QVBoxLayout(
-            card
-        )
+        card_layout = QVBoxLayout(card)
 
         card_layout.setContentsMargins(
             18,
@@ -488,27 +465,17 @@ class StockPage(QWidget):
             15,
         )
 
-        card_layout.setSpacing(
-            5
-        )
-
-        # ------------------------------------------------------------
-        # Ligne supérieure
-        # ------------------------------------------------------------
+        card_layout.setSpacing(5)
 
         top_layout = QHBoxLayout()
 
-        title_label = QLabel(
-            title
-        )
+        title_label = QLabel(title)
 
         title_label.setObjectName(
             "statTitle"
         )
 
-        icon_label = QLabel(
-            icon
-        )
+        icon_label = QLabel(icon)
 
         icon_label.setObjectName(
             "statIcon"
@@ -533,13 +500,7 @@ class StockPage(QWidget):
             icon_label
         )
 
-        # ------------------------------------------------------------
-        # Valeur
-        # ------------------------------------------------------------
-
-        value_label = QLabel(
-            value
-        )
+        value_label = QLabel(value)
 
         value_label.setObjectName(
             "statValue"
@@ -555,15 +516,9 @@ class StockPage(QWidget):
             """
         )
 
-        # ------------------------------------------------------------
-        # Ligne
-        # ------------------------------------------------------------
-
         line = QFrame()
 
-        line.setFixedHeight(
-            4
-        )
+        line.setFixedHeight(4)
 
         line.setStyleSheet(
             f"""
@@ -588,18 +543,14 @@ class StockPage(QWidget):
 
         return card
 
-    # ================================================================
+    # =================================================================
     # STYLE
-    # ================================================================
+    # =================================================================
 
     def apply_styles(self):
 
         self.setStyleSheet(
             """
-            /* =====================================================
-               PAGE
-               ===================================================== */
-
             #stockPage {
                 background-color: #F8FAFC;
             }
@@ -612,10 +563,6 @@ class StockPage(QWidget):
             #stockPageContainer {
                 background-color: #F8FAFC;
             }
-
-            /* =====================================================
-               SCROLLBAR
-               ===================================================== */
 
             QScrollBar:vertical {
                 background-color: #EEF2F6;
@@ -644,10 +591,6 @@ class StockPage(QWidget):
                 background: transparent;
             }
 
-            /* =====================================================
-               TITRE
-               ===================================================== */
-
             #pageTitle {
                 color: #0F172A;
                 font-size: 25px;
@@ -658,10 +601,6 @@ class StockPage(QWidget):
                 color: #64748B;
                 font-size: 13px;
             }
-
-            /* =====================================================
-               STAT CARDS
-               ===================================================== */
 
             #statCard {
                 background-color: white;
@@ -678,10 +617,6 @@ class StockPage(QWidget):
                 font-size: 12px;
                 font-weight: 600;
             }
-
-            /* =====================================================
-               SEARCH
-               ===================================================== */
 
             #searchFrame {
                 background-color: white;
@@ -709,17 +644,13 @@ class StockPage(QWidget):
                 background-color: white;
             }
 
-            /* =====================================================
-               TABLE
-               ===================================================== */
-
             #stockTable {
                 background-color: white;
                 border: 1px solid #E2E8F0;
                 border-radius: 10px;
                 gridline-color: #E2E8F0;
                 color: #1E293B;
-                font-size: 13px;
+                font-size: 12px;
                 outline: none;
             }
 
@@ -738,12 +669,8 @@ class StockPage(QWidget):
                 padding: 11px;
                 border: none;
                 font-weight: bold;
-                font-size: 12px;
+                font-size: 11px;
             }
-
-            /* =====================================================
-               FOOTER
-               ===================================================== */
 
             #stockFooter {
                 background-color: white;
@@ -756,9 +683,143 @@ class StockPage(QWidget):
             """
         )
 
-    # ================================================================
+    # =================================================================
+    # OUTILS DE LECTURE
+    # =================================================================
+
+    @staticmethod
+    def _safe_int(value, default=0):
+        try:
+            return int(value or default)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return default
+
+    @staticmethod
+    def _safe_float(value, default=0.0):
+        try:
+            return float(value or default)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return default
+
+    def _get_packaging(self, product):
+        """
+        Récupère la condition initiale du produit.
+        """
+
+        packaging = getattr(
+            product,
+            "packaging",
+            None,
+        )
+
+        if not packaging:
+            return "Autre produit"
+
+        return str(packaging)
+
+    def _get_boxes_per_carton(self, product):
+        """
+        Nombre de boîtes dans un carton.
+        """
+
+        value = self._safe_int(
+            getattr(
+                product,
+                "boxes_per_carton",
+                0,
+            ),
+            0,
+        )
+
+        return max(value, 1)
+
+    def _get_plaquettes_per_box(self, product):
+        """
+        Nombre de plaquettes dans une boîte.
+
+        Dans la nouvelle logique, `units_per_box`
+        représente le nombre de plaquettes par boîte.
+        """
+
+        value = self._safe_int(
+            getattr(
+                product,
+                "units_per_box",
+                0,
+            ),
+            0,
+        )
+
+        if value <= 0:
+
+            value = self._safe_int(
+                getattr(
+                    product,
+                    "units_per_plaquette",
+                    0,
+                ),
+                0,
+            )
+
+        return max(value, 1)
+
+    # =================================================================
+    # CONFIGURATION DU CONDITIONNEMENT
+    # =================================================================
+
+    def _format_configuration(self, product):
+        """
+        Affiche la configuration du produit.
+        """
+
+        packaging = self._get_packaging(
+            product
+        )
+
+        if packaging.lower() == "carton":
+
+            boxes = self._get_boxes_per_carton(
+                product
+            )
+
+            plaquettes = self._get_plaquettes_per_box(
+                product
+            )
+
+            return (
+                f"{boxes} boîte(s) / carton\n"
+                f"{plaquettes} plaquette(s) / boîte"
+            )
+
+        if packaging.lower() == "boîte":
+
+            plaquettes = self._get_plaquettes_per_box(
+                product
+            )
+
+            if plaquettes > 1:
+
+                return (
+                    f"{plaquettes} plaquette(s) / boîte"
+                )
+
+            return "Vente par boîte"
+
+        if packaging.lower() == "plaquette":
+
+            return "Vente par plaquette"
+
+        return "Produit unitaire"
+
+    # =================================================================
     # FORMATAGE DU STOCK
-    # ================================================================
+    # =================================================================
 
     def _format_stock(
         self,
@@ -766,85 +827,72 @@ class StockPage(QWidget):
         stock_units,
     ):
         """
-        Transforme le stock de base en :
+        Affiche le stock selon la condition initiale.
 
-        Carton
-        Boîte
-        Plaquette
-        Comprimé
+        IMPORTANT :
+
+        - Carton :
+          stock_units = plaquettes
+
+        - Boîte :
+          stock_units = boîtes
+
+        - Plaquette :
+          stock_units = plaquettes
+
+        - Autre produit :
+          stock_units = unités.
         """
 
-        try:
-            units_per_plaquette = int(
-                getattr(
-                    product,
-                    "units_per_plaquette",
-                    10,
-                )
-                or 10
-            )
+        packaging = self._get_packaging(
+            product
+        ).lower()
 
-            plaquettes_per_box = int(
-                getattr(
-                    product,
-                    "units_per_box",
-                    10,
-                )
-                or 10
-            )
-
-            boxes_per_carton = int(
-                getattr(
-                    product,
-                    "boxes_per_carton",
-                    10,
-                )
-                or 10
-            )
-
-            units_per_box = (
-                units_per_plaquette
-                * plaquettes_per_box
-            )
-
-            units_per_carton = (
-                units_per_box
-                * boxes_per_carton
-            )
-
-            stock = max(
+        stock = max(
+            0,
+            self._safe_int(
+                stock_units,
                 0,
-                int(stock_units or 0),
+            ),
+        )
+
+        if packaging == "carton":
+
+            boxes_per_carton = (
+                self._get_boxes_per_carton(
+                    product
+                )
+            )
+
+            plaquettes_per_box = (
+                self._get_plaquettes_per_box(
+                    product
+                )
+            )
+
+            plaquettes_per_carton = (
+                boxes_per_carton
+                * plaquettes_per_box
             )
 
             cartons = (
                 stock
-                // units_per_carton
+                // plaquettes_per_carton
             )
 
             remainder = (
                 stock
-                % units_per_carton
+                % plaquettes_per_carton
             )
 
             boxes = (
                 remainder
-                // units_per_box
-            )
-
-            remainder = (
-                remainder
-                % units_per_box
+                // plaquettes_per_box
             )
 
             plaquettes = (
                 remainder
-                // units_per_plaquette
-            )
-
-            comprimes = (
-                remainder
-                % units_per_plaquette
+                % plaquettes_per_box
             )
 
             parts = []
@@ -852,40 +900,221 @@ class StockPage(QWidget):
             if cartons:
                 parts.append(
                     f"{cartons} carton"
-                    + ("s" if cartons > 1 else "")
+                    + (
+                        "s"
+                        if cartons > 1
+                        else ""
+                    )
                 )
 
             if boxes:
                 parts.append(
                     f"{boxes} boîte"
-                    + ("s" if boxes > 1 else "")
+                    + (
+                        "s"
+                        if boxes > 1
+                        else ""
+                    )
                 )
 
             if plaquettes:
                 parts.append(
                     f"{plaquettes} plaquette"
-                    + ("s" if plaquettes > 1 else "")
-                )
-
-            if comprimes:
-                parts.append(
-                    f"{comprimes} comprimé"
-                    + ("s" if comprimes > 1 else "")
+                    + (
+                        "s"
+                        if plaquettes > 1
+                        else ""
+                    )
                 )
 
             if not parts:
-                return "0"
+                return "0 plaquette"
 
             return " + ".join(parts)
 
-        except Exception:
-            return str(
-                int(stock_units or 0)
+        if packaging == "boîte":
+
+            return (
+                f"{stock} boîte"
+                + (
+                    "s"
+                    if stock > 1
+                    else ""
+                )
             )
 
-    # ================================================================
-    # RÉCUPÉRER LES LOTS
-    # ================================================================
+        if packaging == "plaquette":
+
+            return (
+                f"{stock} plaquette"
+                + (
+                    "s"
+                    if stock > 1
+                    else ""
+                )
+            )
+
+        return (
+            f"{stock} unité"
+            + (
+                "s"
+                if stock > 1
+                else ""
+            )
+        )
+
+    # =================================================================
+    # PRIX
+    # =================================================================
+
+    def _get_prices(self, product):
+        """
+        Récupère les trois prix affichables :
+
+        prix par plaquette
+        prix par boîte
+        prix par carton
+        """
+
+        packaging = self._get_packaging(
+            product
+        ).lower()
+
+        price_per_plaquette = self._safe_float(
+            getattr(
+                product,
+                "price_per_plaquette",
+                0,
+            )
+        )
+
+        price_per_box = self._safe_float(
+            getattr(
+                product,
+                "price_per_box",
+                0,
+            )
+        )
+
+        price_per_carton = self._safe_float(
+            getattr(
+                product,
+                "price_per_carton",
+                0,
+            )
+        )
+
+        # ------------------------------------------------------------
+        # Carton
+        # ------------------------------------------------------------
+
+        if packaging == "carton":
+
+            boxes_per_carton = (
+                self._get_boxes_per_carton(
+                    product
+                )
+            )
+
+            plaquettes_per_box = (
+                self._get_plaquettes_per_box(
+                    product
+                )
+            )
+
+            if price_per_plaquette <= 0:
+
+                price_per_plaquette = (
+                    self._safe_float(
+                        getattr(
+                            product,
+                            "price",
+                            0,
+                        )
+                    )
+                )
+
+            if price_per_box <= 0:
+
+                price_per_box = (
+                    price_per_plaquette
+                    * plaquettes_per_box
+                )
+
+            if price_per_carton <= 0:
+
+                price_per_carton = (
+                    price_per_box
+                    * boxes_per_carton
+                )
+
+        # ------------------------------------------------------------
+        # Boîte
+        # ------------------------------------------------------------
+
+        elif packaging == "boîte":
+
+            if price_per_box <= 0:
+
+                price_per_box = (
+                    self._safe_float(
+                        getattr(
+                            product,
+                            "price",
+                            0,
+                        )
+                    )
+                )
+
+        # ------------------------------------------------------------
+        # Plaquette
+        # ------------------------------------------------------------
+
+        elif packaging == "plaquette":
+
+            if price_per_plaquette <= 0:
+
+                price_per_plaquette = (
+                    self._safe_float(
+                        getattr(
+                            product,
+                            "price",
+                            0,
+                        )
+                    )
+                )
+
+        # ------------------------------------------------------------
+        # Autre produit
+        # ------------------------------------------------------------
+
+        else:
+
+            if price_per_plaquette <= 0:
+
+                price_per_plaquette = (
+                    self._safe_float(
+                        getattr(
+                            product,
+                            "price",
+                            0,
+                        )
+                    )
+                )
+
+        return (
+            price_per_plaquette,
+            price_per_box,
+            price_per_carton,
+        )
+
+    @staticmethod
+    def _format_price(value):
+        return f"{value:,.2f} CDF"
+
+    # =================================================================
+    # LOTS
+    # =================================================================
 
     def _get_batches(
         self,
@@ -893,14 +1122,15 @@ class StockPage(QWidget):
         product,
     ):
         """
-        Retourne les lots du produit.
+        Récupère les lots dans l'ordre FEFO.
 
-        Les lots sont triés par date d'expiration.
-        Le premier lot est donc celui qui doit être vendu en priorité.
+        Le lot avec la date d'expiration
+        la plus proche arrive en premier.
         """
 
         try:
-            batches = (
+
+            return (
                 session.query(ProductBatch)
                 .filter(
                     ProductBatch.product_id
@@ -913,14 +1143,18 @@ class StockPage(QWidget):
                 .all()
             )
 
-            return batches
+        except Exception as error:
 
-        except Exception:
+            print(
+                "Erreur récupération lots :",
+                error,
+            )
+
             return []
 
-    # ================================================================
-    # STOCK TOTAL D'UN PRODUIT
-    # ================================================================
+    # =================================================================
+    # STOCK TOTAL
+    # =================================================================
 
     def _get_product_stock(
         self,
@@ -928,37 +1162,41 @@ class StockPage(QWidget):
         batches,
     ):
         """
-        Calcule le stock total à partir des lots.
+        Calcule le stock total du produit.
+
+        Priorité aux lots.
+
+        Si aucun lot n'existe,
+        utilisation de l'ancien stock du produit.
         """
 
         if batches:
+
             total = 0
 
             for batch in batches:
-                total += int(
+
+                total += self._safe_int(
                     getattr(
                         batch,
                         "stock_units",
                         0,
                     )
-                    or 0
                 )
 
             return total
 
-        # Compatibilité avec ancienne base.
-        return int(
+        return self._safe_int(
             getattr(
                 product,
                 "stock_units",
                 0,
             )
-            or 0
         )
 
-    # ================================================================
-    # ÉTAT EXPIRATION
-    # ================================================================
+    # =================================================================
+    # EXPIRATION
+    # =================================================================
 
     def _get_expiry_status(
         self,
@@ -966,13 +1204,6 @@ class StockPage(QWidget):
         today,
         alert_limit,
     ):
-        """
-        Retourne :
-
-        texte
-        couleur
-        catégorie
-        """
 
         if expiry_date is None:
 
@@ -1004,19 +1235,86 @@ class StockPage(QWidget):
             "ok",
         )
 
-    # ================================================================
-    # RECHERCHE / ACTUALISATION
-    # ================================================================
+    # =================================================================
+    # RECHERCHE
+    # =================================================================
+
+    def _matches_search(
+        self,
+        product,
+        batch,
+        search_text,
+    ):
+
+        if not search_text:
+            return True
+
+        product_name = (
+            getattr(
+                product,
+                "name",
+                None,
+            )
+            or ""
+        )
+
+        supplier = (
+            getattr(
+                batch,
+                "supplier",
+                None,
+            )
+            if batch is not None
+            else None
+        )
+
+        if not supplier:
+
+            supplier = getattr(
+                product,
+                "supplier",
+                None,
+            )
+
+        batch_number = ""
+
+        if batch is not None:
+
+            batch_number = (
+                getattr(
+                    batch,
+                    "batch_number",
+                    None,
+                )
+                or ""
+            )
+
+        packaging = (
+            self._get_packaging(
+                product
+            )
+        )
+
+        combined = " ".join(
+            [
+                str(product_name),
+                str(supplier or ""),
+                str(batch_number),
+                str(packaging),
+            ]
+        ).lower()
+
+        return search_text in combined
+
+    # =================================================================
+    # ACTUALISATION
+    # =================================================================
 
     def refresh(self):
 
         session = SessionLocal()
 
         try:
-
-            # ========================================================
-            # RECHERCHE
-            # ========================================================
 
             search_text = (
                 self.search_input
@@ -1025,18 +1323,13 @@ class StockPage(QWidget):
                 .lower()
             )
 
-            query = (
+            products = (
                 session.query(Product)
                 .order_by(
                     Product.name.asc()
                 )
+                .all()
             )
-
-            products = query.all()
-
-            # ========================================================
-            # DATES
-            # ========================================================
 
             today = date.today()
 
@@ -1047,23 +1340,13 @@ class StockPage(QWidget):
                 )
             )
 
-            # ========================================================
-            # COMPTEURS
-            # ========================================================
-
             c_total_products = 0
             c_total_batches = 0
             c_expired = 0
             c_warning = 0
             c_low_stock = 0
 
-            # ========================================================
-            # VIDER TABLEAU
-            # ========================================================
-
-            self.table.setRowCount(
-                0
-            )
+            self.table.setRowCount(0)
 
             # ========================================================
             # PRODUITS
@@ -1076,47 +1359,29 @@ class StockPage(QWidget):
                     product,
                 )
 
-                # ----------------------------------------------------
-                # Compatibilité ancienne base
-                # ----------------------------------------------------
+                # ====================================================
+                # ANCIEN SYSTÈME SANS LOT
+                # ====================================================
 
                 if not batches:
 
-                    product_name = (
-                        product.name
-                        or "-"
-                    )
-
-                    batch_number = (
-                        getattr(
-                            product,
-                            "batch_number",
-                            None,
-                        )
-                        or "-"
-                    )
-
-                    combined_search = (
-                        f"{product_name} "
-                        f"{batch_number}"
-                    ).lower()
-
-                    if (
-                        search_text
-                        and search_text
-                        not in combined_search
+                    if not self._matches_search(
+                        product,
+                        None,
+                        search_text,
                     ):
                         continue
 
                     c_total_products += 1
 
-                    stock_units = int(
-                        getattr(
-                            product,
-                            "stock_units",
-                            0,
+                    stock_units = (
+                        self._safe_int(
+                            getattr(
+                                product,
+                                "stock_units",
+                                0,
+                            )
                         )
-                        or 0
                     )
 
                     expiry_date = getattr(
@@ -1125,12 +1390,14 @@ class StockPage(QWidget):
                         None,
                     )
 
-                    status_text, status_color, category = (
-                        self._get_expiry_status(
-                            expiry_date,
-                            today,
-                            alert_limit,
-                        )
+                    (
+                        status_text,
+                        status_color,
+                        category,
+                    ) = self._get_expiry_status(
+                        expiry_date,
+                        today,
+                        alert_limit,
                     )
 
                     if category == "expired":
@@ -1139,14 +1406,14 @@ class StockPage(QWidget):
                     elif category == "warning":
                         c_warning += 1
 
-                    # Stock faible
-                    minimum_stock = int(
-                        getattr(
-                            product,
-                            "min_quantity",
-                            0,
+                    minimum_stock = (
+                        self._safe_int(
+                            getattr(
+                                product,
+                                "min_quantity",
+                                0,
+                            )
                         )
-                        or 0
                     )
 
                     low_stock = (
@@ -1162,7 +1429,6 @@ class StockPage(QWidget):
                         batch=None,
                         stock_units=stock_units,
                         expiry_date=expiry_date,
-                        batch_number=batch_number,
                         status_text=status_text,
                         status_color=status_color,
                         low_stock=low_stock,
@@ -1171,38 +1437,22 @@ class StockPage(QWidget):
 
                     continue
 
-                # ----------------------------------------------------
-                # Nouveau système par lots
-                # ----------------------------------------------------
+                # ====================================================
+                # NOUVEAU SYSTÈME PAR LOT
+                # ====================================================
 
                 visible_batches = []
 
                 for batch in batches:
 
-                    batch_number = (
-                        getattr(
-                            batch,
-                            "batch_number",
-                            None,
-                        )
-                        or "-"
-                    )
-
-                    combined_search = (
-                        f"{product.name or ''} "
-                        f"{batch_number}"
-                    ).lower()
-
-                    if (
-                        search_text
-                        and search_text
-                        not in combined_search
+                    if self._matches_search(
+                        product,
+                        batch,
+                        search_text,
                     ):
-                        continue
-
-                    visible_batches.append(
-                        batch
-                    )
+                        visible_batches.append(
+                            batch
+                        )
 
                 if not visible_batches:
                     continue
@@ -1213,9 +1463,9 @@ class StockPage(QWidget):
                     visible_batches
                 )
 
-                # ----------------------------------------------------
-                # Stock total
-                # ----------------------------------------------------
+                # ====================================================
+                # STOCK TOTAL
+                # ====================================================
 
                 total_stock = (
                     self._get_product_stock(
@@ -1224,13 +1474,14 @@ class StockPage(QWidget):
                     )
                 )
 
-                minimum_stock = int(
-                    getattr(
-                        product,
-                        "min_quantity",
-                        0,
+                minimum_stock = (
+                    self._safe_int(
+                        getattr(
+                            product,
+                            "min_quantity",
+                            0,
+                        )
                     )
-                    or 0
                 )
 
                 low_stock = (
@@ -1241,19 +1492,20 @@ class StockPage(QWidget):
                 if low_stock:
                     c_low_stock += 1
 
-                # ----------------------------------------------------
-                # Chaque lot
-                # ----------------------------------------------------
+                # ====================================================
+                # LOTS
+                # ====================================================
 
                 for batch in visible_batches:
 
-                    stock_units = int(
-                        getattr(
-                            batch,
-                            "stock_units",
-                            0,
+                    stock_units = (
+                        self._safe_int(
+                            getattr(
+                                batch,
+                                "stock_units",
+                                0,
+                            )
                         )
-                        or 0
                     )
 
                     expiry_date = getattr(
@@ -1262,12 +1514,14 @@ class StockPage(QWidget):
                         None,
                     )
 
-                    status_text, status_color, category = (
-                        self._get_expiry_status(
-                            expiry_date,
-                            today,
-                            alert_limit,
-                        )
+                    (
+                        status_text,
+                        status_color,
+                        category,
+                    ) = self._get_expiry_status(
+                        expiry_date,
+                        today,
+                        alert_limit,
                     )
 
                     if category == "expired":
@@ -1281,14 +1535,6 @@ class StockPage(QWidget):
                         batch=batch,
                         stock_units=stock_units,
                         expiry_date=expiry_date,
-                        batch_number=(
-                            getattr(
-                                batch,
-                                "batch_number",
-                                None,
-                            )
-                            or "-"
-                        ),
                         status_text=status_text,
                         status_color=status_color,
                         low_stock=low_stock,
@@ -1310,6 +1556,7 @@ class StockPage(QWidget):
             for row in range(
                 self.table.rowCount()
             ):
+
                 rows_height += (
                     self.table.rowHeight(
                         row
@@ -1319,7 +1566,7 @@ class StockPage(QWidget):
             table_height = (
                 header_height
                 + rows_height
-                + 10
+                + 15
             )
 
             table_height = max(
@@ -1367,17 +1614,17 @@ class StockPage(QWidget):
         except Exception as error:
 
             print(
-                "Erreur lors du chargement "
-                f"des stocks : {error}"
+                "Erreur lors du chargement des stocks :",
+                error,
             )
 
         finally:
 
             session.close()
 
-    # ================================================================
+    # =================================================================
     # AJOUT D'UNE LIGNE
-    # ================================================================
+    # =================================================================
 
     def _add_stock_row(
         self,
@@ -1385,32 +1632,31 @@ class StockPage(QWidget):
         batch,
         stock_units,
         expiry_date,
-        batch_number,
         status_text,
         status_color,
         low_stock,
         minimum_stock,
     ):
 
-        row = (
-            self.table.rowCount()
-        )
+        row = self.table.rowCount()
 
-        self.table.insertRow(
-            row
-        )
+        self.table.insertRow(row)
 
         self.table.setRowHeight(
             row,
-            52,
+            62,
         )
 
         # ============================================================
-        # MÉDICAMENT
+        # PRODUIT
         # ============================================================
 
         product_item = QTableWidgetItem(
-            product.name
+            getattr(
+                product,
+                "name",
+                None,
+            )
             or "-"
         )
 
@@ -1418,207 +1664,6 @@ class StockPage(QWidget):
             row,
             0,
             product_item,
-        )
-
-        # ============================================================
-        # LOT
-        # ============================================================
-
-        lot_item = QTableWidgetItem(
-            batch_number
-        )
-
-        lot_item.setTextAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        self.table.setItem(
-            row,
-            1,
-            lot_item,
-        )
-
-        # ============================================================
-        # STOCK
-        # ============================================================
-
-        stock_text = self._format_stock(
-            product,
-            stock_units,
-        )
-
-        stock_item = QTableWidgetItem(
-            stock_text
-        )
-
-        stock_item.setTextAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        self.table.setItem(
-            row,
-            2,
-            stock_item,
-        )
-
-        # ============================================================
-        # PRIX
-        # ============================================================
-
-        try:
-
-            price = get_price_for_packaging(
-                product,
-                "Boîte",
-            )
-
-            price_text = (
-                f"{float(price):,.2f} CDF"
-            )
-
-        except Exception:
-
-            try:
-
-                price = float(
-                    getattr(
-                        product,
-                        "price",
-                        0,
-                    )
-                    or 0
-                )
-
-                price_text = (
-                    f"{price:,.2f} CDF"
-                )
-
-            except (
-                TypeError,
-                ValueError,
-            ):
-
-                price_text = (
-                    "0.00 CDF"
-                )
-
-        price_item = QTableWidgetItem(
-            price_text
-        )
-
-        price_item.setTextAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        self.table.setItem(
-            row,
-            3,
-            price_item,
-        )
-
-        # ============================================================
-        # EXPIRATION
-        # ============================================================
-
-        if expiry_date:
-
-            try:
-
-                exp_text = (
-                    expiry_date.strftime(
-                        "%d/%m/%Y"
-                    )
-                )
-
-            except AttributeError:
-
-                exp_text = str(
-                    expiry_date
-                )
-
-        else:
-
-            exp_text = (
-                "N/A"
-            )
-
-        expiry_item = QTableWidgetItem(
-            exp_text
-        )
-
-        expiry_item.setTextAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        self.table.setItem(
-            row,
-            4,
-            expiry_item,
-        )
-
-        # ============================================================
-        # ÉTAT EXPIRATION
-        # ============================================================
-
-        status_item = QTableWidgetItem(
-            status_text
-        )
-
-        status_item.setBackground(
-            status_color
-        )
-
-        status_item.setTextAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        self.table.setItem(
-            row,
-            5,
-            status_item,
-        )
-
-        # ============================================================
-        # STOCK FAIBLE
-        # ============================================================
-
-        if low_stock:
-
-            stock_status = (
-                f"🟡 FAIBLE "
-                f"(≤ {minimum_stock})"
-            )
-
-            stock_color = QColor(
-                "#FEF3C7"
-            )
-
-        else:
-
-            stock_status = (
-                "🟢 OK"
-            )
-
-            stock_color = QColor(
-                "#DCFCE7"
-            )
-
-        stock_alert_item = QTableWidgetItem(
-            stock_status
-        )
-
-        stock_alert_item.setBackground(
-            stock_color
-        )
-
-        stock_alert_item.setTextAlignment(
-            Qt.AlignmentFlag.AlignCenter
-        )
-
-        self.table.setItem(
-            row,
-            6,
-            stock_alert_item,
         )
 
         # ============================================================
@@ -1644,35 +1689,265 @@ class StockPage(QWidget):
             )
 
         supplier_item = QTableWidgetItem(
-            supplier
-            or "-"
+            supplier or "-"
+        )
+
+        self.table.setItem(
+            row,
+            1,
+            supplier_item,
+        )
+
+        # ============================================================
+        # CONDITION
+        # ============================================================
+
+        packaging = self._get_packaging(
+            product
+        )
+
+        packaging_item = QTableWidgetItem(
+            packaging
+        )
+
+        packaging_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        if packaging.lower() == "carton":
+
+            packaging_item.setBackground(
+                QColor("#DBEAFE")
+            )
+
+        elif packaging.lower() == "boîte":
+
+            packaging_item.setBackground(
+                QColor("#E0F2FE")
+            )
+
+        elif packaging.lower() == "plaquette":
+
+            packaging_item.setBackground(
+                QColor("#DCFCE7")
+            )
+
+        else:
+
+            packaging_item.setBackground(
+                QColor("#F1F5F9")
+            )
+
+        self.table.setItem(
+            row,
+            2,
+            packaging_item,
+        )
+
+        # ============================================================
+        # CONFIGURATION
+        # ============================================================
+
+        configuration_item = QTableWidgetItem(
+            self._format_configuration(
+                product
+            )
+        )
+
+        configuration_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.table.setItem(
+            row,
+            3,
+            configuration_item,
+        )
+
+        # ============================================================
+        # STOCK
+        # ============================================================
+
+        stock_item = QTableWidgetItem(
+            self._format_stock(
+                product,
+                stock_units,
+            )
+        )
+
+        stock_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.table.setItem(
+            row,
+            4,
+            stock_item,
+        )
+
+        # ============================================================
+        # PRIX
+        # ============================================================
+
+        (
+            price_per_plaquette,
+            price_per_box,
+            price_per_carton,
+        ) = self._get_prices(
+            product
+        )
+
+        # ------------------------------------------------------------
+        # Prix plaquette
+        # ------------------------------------------------------------
+
+        plaquette_item = QTableWidgetItem(
+            self._format_price(
+                price_per_plaquette
+            )
+        )
+
+        plaquette_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.table.setItem(
+            row,
+            5,
+            plaquette_item,
+        )
+
+        # ------------------------------------------------------------
+        # Prix boîte
+        # ------------------------------------------------------------
+
+        box_item = QTableWidgetItem(
+            self._format_price(
+                price_per_box
+            )
+        )
+
+        box_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.table.setItem(
+            row,
+            6,
+            box_item,
+        )
+
+        # ------------------------------------------------------------
+        # Prix carton
+        # ------------------------------------------------------------
+
+        carton_item = QTableWidgetItem(
+            self._format_price(
+                price_per_carton
+            )
+        )
+
+        carton_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
         )
 
         self.table.setItem(
             row,
             7,
-            supplier_item,
+            carton_item,
+        )
+
+        # ============================================================
+        # EXPIRATION
+        # ============================================================
+
+        if expiry_date:
+
+            try:
+
+                expiry_text = (
+                    expiry_date.strftime(
+                        "%d/%m/%Y"
+                    )
+                )
+
+            except AttributeError:
+
+                expiry_text = str(
+                    expiry_date
+                )
+
+        else:
+
+            expiry_text = "N/A"
+
+        expiry_item = QTableWidgetItem(
+            expiry_text
+        )
+
+        expiry_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.table.setItem(
+            row,
+            8,
+            expiry_item,
+        )
+
+        # ============================================================
+        # ÉTAT
+        # ============================================================
+
+        status_item = QTableWidgetItem(
+            status_text
+        )
+
+        status_item.setBackground(
+            status_color
+        )
+
+        status_item.setTextAlignment(
+            Qt.AlignmentFlag.AlignCenter
+        )
+
+        self.table.setItem(
+            row,
+            9,
+            status_item,
         )
 
         # ============================================================
         # DONNÉES INTERNES
         # ============================================================
 
-        if batch is not None:
+        product_item.setData(
+            Qt.ItemDataRole.UserRole,
+            product.id,
+        )
 
-            product_item.setData(
-                Qt.ItemDataRole.UserRole,
-                product.id,
-            )
+        if batch is not None:
 
             product_item.setData(
                 Qt.ItemDataRole.UserRole + 1,
                 batch.id,
             )
 
-    # ================================================================
-    # VALEUR D'UNE CARTE
-    # ================================================================
+            batch_number = getattr(
+                batch,
+                "batch_number",
+                None,
+            )
+
+            if batch_number:
+
+                product_item.setToolTip(
+                    f"Lot : {batch_number}"
+                )
+
+    # =================================================================
+    # VALEUR CARTE
+    # =================================================================
 
     def _set_card_value(
         self,
@@ -1713,8 +1988,8 @@ def main():
     )
 
     window.resize(
-        1250,
-        800,
+        1450,
+        850,
     )
 
     window.show()

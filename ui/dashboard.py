@@ -24,8 +24,6 @@ from PySide6.QtWidgets import (
 
 from database.database import (
     SessionLocal,
-    get_stock_display,
-    get_units_for_packaging,
 )
 
 from database.models import (
@@ -33,6 +31,7 @@ from database.models import (
     ProductBatch,
     Sale,
     SaleItem,
+    Expense,
 )
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -40,31 +39,6 @@ from matplotlib.figure import Figure
 
 
 class DashboardPage(QWidget):
-    """
-    Tableau de bord professionnel de la pharmacie.
-
-    Gestion compatible avec :
-
-        Carton
-            ↓
-        Boîte
-            ↓
-        Plaquette
-            ↓
-        Comprimé
-
-    Le stock réel est exprimé dans l'unité de base
-    (généralement le comprimé).
-
-    Les stocks sont gérés par LOT afin de pouvoir :
-
-    - connaître la date d'expiration de chaque lot ;
-    - détecter les lots expirés ;
-    - détecter les lots qui expirent bientôt ;
-    - calculer le stock disponible ;
-    - appliquer une logique FEFO lors des ventes ;
-    - afficher correctement les stocks dans le dashboard.
-    """
 
     def __init__(self):
         super().__init__()
@@ -80,7 +54,7 @@ class DashboardPage(QWidget):
         outer_layout.setSpacing(0)
 
         # =========================================================
-        # SCROLL AREA
+        # SCROLL
         # =========================================================
 
         self.scroll_area = QScrollArea()
@@ -95,34 +69,20 @@ class DashboardPage(QWidget):
             Qt.ScrollBarAlwaysOff
         )
 
-        self.scroll_area.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Expanding,
-        )
-
-        # =========================================================
-        # CONTENU
-        # =========================================================
-
         self.dashboard_content = QWidget()
-
-        self.dashboard_content.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Minimum,
-        )
 
         self.dashboard_layout = QVBoxLayout(
             self.dashboard_content
         )
 
         self.dashboard_layout.setContentsMargins(
-            24,
-            24,
-            24,
+            28,
+            26,
+            28,
             40,
         )
 
-        self.dashboard_layout.setSpacing(20)
+        self.dashboard_layout.setSpacing(22)
 
         self.scroll_area.setWidget(
             self.dashboard_content
@@ -137,19 +97,26 @@ class DashboardPage(QWidget):
         # =========================================================
 
         header_layout = QHBoxLayout()
-        header_layout.setSpacing(12)
+        header_layout.setSpacing(14)
 
         title_container = QVBoxLayout()
         title_container.setSpacing(4)
 
-        title = QLabel("Tableau de bord")
-        title.setObjectName("pageTitle")
+        title = QLabel(
+            "Tableau de bord"
+        )
+
+        title.setObjectName(
+            "pageTitle"
+        )
 
         subtitle = QLabel(
             "Vue générale de l'activité de votre pharmacie"
         )
 
-        subtitle.setObjectName("pageSubtitle")
+        subtitle.setObjectName(
+            "pageSubtitle"
+        )
 
         title_container.addWidget(title)
         title_container.addWidget(subtitle)
@@ -164,8 +131,24 @@ class DashboardPage(QWidget):
         # FILTRE PERIODE
         # =========================================================
 
+        period_container = QVBoxLayout()
+        period_container.setSpacing(3)
+
+        period_label = QLabel(
+            "Période"
+        )
+
+        period_label.setStyleSheet("""
+            color: #667085;
+            font-size: 11px;
+            font-weight: 600;
+        """)
+
         self.period_combo = QComboBox()
-        self.period_combo.setMinimumWidth(180)
+
+        self.period_combo.setMinimumWidth(
+            190
+        )
 
         self.period_combo.addItems([
             "Aujourd'hui",
@@ -178,6 +161,18 @@ class DashboardPage(QWidget):
             self.refresh
         )
 
+        period_container.addWidget(
+            period_label
+        )
+
+        period_container.addWidget(
+            self.period_combo
+        )
+
+        header_layout.addLayout(
+            period_container
+        )
+
         # =========================================================
         # BOUTON ACTUALISER
         # =========================================================
@@ -186,14 +181,16 @@ class DashboardPage(QWidget):
             "↻  Actualiser"
         )
 
-        self.refresh_button.setMinimumHeight(40)
+        self.refresh_button.setObjectName(
+            "refreshButton"
+        )
+
+        self.refresh_button.setMinimumHeight(
+            42
+        )
 
         self.refresh_button.clicked.connect(
             self.refresh
-        )
-
-        header_layout.addWidget(
-            self.period_combo
         )
 
         header_layout.addWidget(
@@ -205,14 +202,90 @@ class DashboardPage(QWidget):
         )
 
         # =========================================================
+        # PETIT INDICATEUR DE PERIODE
+        # =========================================================
+
+        self.period_info = QLabel()
+
+        self.period_info.setStyleSheet("""
+            background: #eef4ff;
+            color: #175cd3;
+            border: 1px solid #b2ddff;
+            border-radius: 9px;
+            padding: 9px 13px;
+            font-size: 12px;
+            font-weight: 600;
+        """)
+
+        self.dashboard_layout.addWidget(
+            self.period_info
+        )
+
+        # =========================================================
         # KPI
         # =========================================================
 
         self.kpi_grid = QGridLayout()
-        self.kpi_grid.setSpacing(15)
+        self.kpi_grid.setSpacing(16)
 
         self.dashboard_layout.addLayout(
             self.kpi_grid
+        )
+
+        # =========================================================
+        # RESUME FINANCIER
+        # =========================================================
+
+        self.financial_card = QFrame()
+        self.financial_card.setObjectName(
+            "financialCard"
+        )
+
+        financial_layout = QVBoxLayout(
+            self.financial_card
+        )
+
+        financial_layout.setContentsMargins(
+            20,
+            18,
+            20,
+            18,
+        )
+
+        financial_layout.setSpacing(6)
+
+        financial_title = QLabel(
+            "Résumé financier"
+        )
+
+        financial_title.setStyleSheet("""
+            color: #10233f;
+            font-size: 16px;
+            font-weight: 700;
+        """)
+
+        self.financial_text = QLabel()
+
+        self.financial_text.setWordWrap(
+            True
+        )
+
+        self.financial_text.setStyleSheet("""
+            color: #475467;
+            font-size: 13px;
+            line-height: 1.4;
+        """)
+
+        financial_layout.addWidget(
+            financial_title
+        )
+
+        financial_layout.addWidget(
+            self.financial_text
+        )
+
+        self.dashboard_layout.addWidget(
+            self.financial_card
         )
 
         # =========================================================
@@ -232,7 +305,7 @@ class DashboardPage(QWidget):
 
         top_products_card = self.create_section_card(
             "🏆 Produits les plus vendus",
-            "Produits ayant généré le plus de ventes",
+            "Produits ayant généré le plus de ventes pendant la période sélectionnée",
         )
 
         top_products_layout = (
@@ -272,19 +345,6 @@ class DashboardPage(QWidget):
 
         self.top_products_table.setMaximumHeight(
             450
-        )
-
-        self.top_products_table.setSizePolicy(
-            QSizePolicy.Expanding,
-            QSizePolicy.Fixed,
-        )
-
-        self.top_products_table.setVerticalScrollBarPolicy(
-            Qt.ScrollBarAsNeeded
-        )
-
-        self.top_products_table.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarAlwaysOff
         )
 
         header = (
@@ -340,11 +400,9 @@ class DashboardPage(QWidget):
             self.alerts_card
         )
 
-        # =========================================================
-        # ESPACE FINAL
-        # =========================================================
-
-        self.dashboard_layout.addSpacing(30)
+        self.dashboard_layout.addSpacing(
+            30
+        )
 
         # =========================================================
         # STYLE
@@ -363,9 +421,6 @@ class DashboardPage(QWidget):
     # =============================================================
 
     def clear_layout(self, layout):
-        """
-        Supprime proprement les widgets d'un layout.
-        """
 
         if layout is None:
             return
@@ -392,13 +447,13 @@ class DashboardPage(QWidget):
 
         self.setStyleSheet("""
             QWidget#dashboardPage {
-                background: #f5f7fa;
+                background: #f4f6f9;
             }
 
             QLabel#pageTitle {
                 color: #10233f;
-                font-size: 26px;
-                font-weight: 700;
+                font-size: 28px;
+                font-weight: 800;
             }
 
             QLabel#pageSubtitle {
@@ -409,26 +464,31 @@ class DashboardPage(QWidget):
             QComboBox {
                 background: white;
                 border: 1px solid #d0d5dd;
-                border-radius: 8px;
+                border-radius: 9px;
                 padding: 8px 12px;
                 color: #344054;
                 min-height: 22px;
+                font-size: 13px;
             }
 
             QComboBox:hover {
                 border: 1px solid #98a2b3;
             }
 
-            QPushButton {
+            QComboBox:focus {
+                border: 1px solid #2e90fa;
+            }
+
+            QPushButton#refreshButton {
                 background: #10233f;
                 color: white;
                 border: none;
-                border-radius: 8px;
-                padding: 9px 16px;
-                font-weight: 600;
+                border-radius: 9px;
+                padding: 10px 17px;
+                font-weight: 700;
             }
 
-            QPushButton:hover {
+            QPushButton#refreshButton:hover {
                 background: #1d3557;
             }
 
@@ -462,15 +522,16 @@ class DashboardPage(QWidget):
             QTableWidget {
                 background: white;
                 border: 1px solid #eaecf0;
-                border-radius: 8px;
+                border-radius: 10px;
                 gridline-color: #f2f4f7;
                 color: #344054;
                 selection-background-color: #eef4ff;
                 selection-color: #10233f;
+                font-size: 13px;
             }
 
             QTableWidget::item {
-                padding: 8px;
+                padding: 9px;
             }
 
             QHeaderView::section {
@@ -478,8 +539,8 @@ class DashboardPage(QWidget):
                 color: #475467;
                 border: none;
                 border-bottom: 1px solid #eaecf0;
-                padding: 10px;
-                font-weight: 600;
+                padding: 11px;
+                font-weight: 700;
             }
         """)
 
@@ -494,6 +555,7 @@ class DashboardPage(QWidget):
     ):
 
         card = QFrame()
+
         card.setObjectName(
             "dashboardCard"
         )
@@ -502,28 +564,28 @@ class DashboardPage(QWidget):
             QFrame#dashboardCard {
                 background: white;
                 border: 1px solid #eaecf0;
-                border-radius: 12px;
+                border-radius: 14px;
             }
         """)
 
         layout = QVBoxLayout(card)
 
         layout.setContentsMargins(
-            18,
-            18,
-            18,
-            18,
+            20,
+            20,
+            20,
+            20,
         )
 
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
         title = QLabel(
             title_text
         )
 
         title.setStyleSheet("""
-            font-size: 16px;
-            font-weight: 700;
+            font-size: 17px;
+            font-weight: 800;
             color: #10233f;
         """)
 
@@ -549,7 +611,7 @@ class DashboardPage(QWidget):
         return card
 
     # =============================================================
-    # KPI CARD
+    # KPI CARD PROFESSIONNELLE
     # =============================================================
 
     def create_kpi_card(
@@ -557,12 +619,14 @@ class DashboardPage(QWidget):
         title,
         value,
         icon,
+        accent="#175cd3",
+        background="#eef4ff",
     ):
 
         card = QFrame()
 
         card.setMinimumHeight(
-            115
+            128
         )
 
         card.setSizePolicy(
@@ -570,12 +634,12 @@ class DashboardPage(QWidget):
             QSizePolicy.Fixed,
         )
 
-        card.setStyleSheet("""
-            QFrame {
+        card.setStyleSheet(f"""
+            QFrame {{
                 background: white;
                 border: 1px solid #eaecf0;
-                border-radius: 12px;
-            }
+                border-radius: 14px;
+            }}
         """)
 
         layout = QHBoxLayout(card)
@@ -589,47 +653,76 @@ class DashboardPage(QWidget):
 
         layout.setSpacing(14)
 
-        icon_label = QLabel(
-            icon
+        icon_container = QFrame()
+
+        icon_container.setFixedSize(
+            52,
+            52,
         )
 
-        icon_label.setFixedSize(
-            48,
-            48,
+        icon_container.setStyleSheet(f"""
+            QFrame {{
+                background: {background};
+                border-radius: 12px;
+                border: 1px solid {accent};
+            }}
+        """)
+
+        icon_layout = QVBoxLayout(
+            icon_container
+        )
+
+        icon_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        icon_label = QLabel(
+            icon
         )
 
         icon_label.setAlignment(
             Qt.AlignCenter
         )
 
-        icon_label.setStyleSheet("""
-            background: #eef4ff;
-            border-radius: 10px;
-            font-size: 22px;
-        """)
+        icon_label.setStyleSheet(
+            "font-size: 23px; border: none;"
+        )
+
+        icon_layout.addWidget(
+            icon_label
+        )
 
         text_layout = QVBoxLayout()
-        text_layout.setSpacing(3)
+        text_layout.setSpacing(4)
 
         title_label = QLabel(
             title
         )
 
-        title_label.setStyleSheet("""
+        title_label.setStyleSheet(f"""
             color: #667085;
             font-size: 12px;
-            font-weight: 500;
+            font-weight: 600;
+            border: none;
         """)
 
         value_label = QLabel(
             str(value)
         )
 
-        value_label.setStyleSheet("""
-            color: #10233f;
-            font-size: 24px;
-            font-weight: 700;
+        value_label.setStyleSheet(f"""
+            color: {accent};
+            font-size: 23px;
+            font-weight: 800;
+            border: none;
         """)
+
+        value_label.setWordWrap(
+            True
+        )
 
         text_layout.addWidget(
             title_label
@@ -640,7 +733,7 @@ class DashboardPage(QWidget):
         )
 
         layout.addWidget(
-            icon_label
+            icon_container
         )
 
         layout.addLayout(
@@ -722,6 +815,14 @@ class DashboardPage(QWidget):
                 .all()
             )
 
+            try:
+                expenses = (
+                    session.query(Expense)
+                    .all()
+                )
+            except Exception:
+                expenses = []
+
             # -----------------------------------------------------
             # KPI
             # -----------------------------------------------------
@@ -730,6 +831,7 @@ class DashboardPage(QWidget):
                 products,
                 batches,
                 sales,
+                expenses,
             )
 
             # -----------------------------------------------------
@@ -742,6 +844,10 @@ class DashboardPage(QWidget):
 
             self.update_sales_chart(
                 sales
+            )
+
+            self.update_expenses_chart(
+                expenses
             )
 
             self.update_stock_chart(
@@ -799,15 +905,18 @@ class DashboardPage(QWidget):
         )
 
         if index == 0:
+
             return today, today
 
         if index == 1:
+
             return (
                 today - timedelta(days=6),
                 today,
             )
 
         if index == 2:
+
             return (
                 today - timedelta(days=29),
                 today,
@@ -822,7 +931,10 @@ class DashboardPage(QWidget):
     # DATE VENTE
     # =============================================================
 
-    def get_sale_date(self, sale):
+    def get_sale_date(
+        self,
+        sale,
+    ):
 
         possible_fields = [
             "created_at",
@@ -857,10 +969,90 @@ class DashboardPage(QWidget):
         return None
 
     # =============================================================
-    # DATE EXPIRATION
+    # DATE DEPENSE
     # =============================================================
 
-    def normalize_date(self, value):
+    def get_expense_date(
+        self,
+        expense,
+    ):
+
+        possible_fields = [
+            "expense_date",
+            "created_at",
+            "date",
+        ]
+
+        for field in possible_fields:
+
+            value = getattr(
+                expense,
+                field,
+                None,
+            )
+
+            if value is None:
+                continue
+
+            if isinstance(
+                value,
+                datetime,
+            ):
+                return value.date()
+
+            if isinstance(
+                value,
+                date,
+            ):
+                return value
+
+        return None
+
+    # =============================================================
+    # FILTRER DEPENSES
+    # =============================================================
+
+    def get_period_expenses(
+        self,
+        expenses,
+    ):
+
+        start_date, end_date = (
+            self.get_selected_period()
+        )
+
+        result = []
+
+        for expense in expenses:
+
+            expense_date = (
+                self.get_expense_date(
+                    expense
+                )
+            )
+
+            if expense_date is None:
+                continue
+
+            if (
+                start_date
+                <= expense_date
+                <= end_date
+            ):
+                result.append(
+                    expense
+                )
+
+        return result
+
+    # =============================================================
+    # NORMALIZE DATE
+    # =============================================================
+
+    def normalize_date(
+        self,
+        value,
+    ):
 
         if value is None:
             return None
@@ -880,7 +1072,7 @@ class DashboardPage(QWidget):
         return None
 
     # =============================================================
-    # STOCK TOTAL D'UN PRODUIT
+    # STOCK PRODUIT
     # =============================================================
 
     def get_product_stock(
@@ -889,20 +1081,6 @@ class DashboardPage(QWidget):
         batches,
         include_expired=False,
     ):
-        """
-        Retourne le stock réel en unité de base.
-
-        Exemple :
-
-        1 carton = 10 boîtes
-        1 boîte = 10 plaquettes
-        1 plaquette = 10 comprimés
-
-        Si un lot possède 1000 comprimés,
-        le stock retourné est 1000.
-
-        Les lots expirés sont exclus par défaut.
-        """
 
         today = date.today()
 
@@ -953,10 +1131,6 @@ class DashboardPage(QWidget):
 
             total += quantity
 
-        # ---------------------------------------------------------
-        # Compatibilité avec l'ancien système
-        # ---------------------------------------------------------
-
         if total == 0 and not batches:
 
             total = int(
@@ -984,54 +1158,43 @@ class DashboardPage(QWidget):
         product,
         stock_units,
     ):
-        """
-        Transforme le stock de base en :
-
-        cartons + boîtes + plaquettes + comprimés.
-        """
 
         try:
 
-            tablets_per_blister = int(
-                getattr(
-                    product,
-                    "units_per_plaquette",
-                    1,
-                )
-                or 1
-            )
-
-            blisters_per_box = int(
-                getattr(
-                    product,
-                    "units_per_box",
-                    1,
-                )
-                or 1
-            )
-
-            boxes_per_carton = int(
-                getattr(
-                    product,
-                    "boxes_per_carton",
-                    1,
-                )
-                or 1
-            )
-
             tablets_per_blister = max(
-                tablets_per_blister,
                 1,
+                int(
+                    getattr(
+                        product,
+                        "units_per_plaquette",
+                        1,
+                    )
+                    or 1
+                ),
             )
 
             blisters_per_box = max(
-                blisters_per_box,
                 1,
+                int(
+                    getattr(
+                        product,
+                        "units_per_box",
+                        1,
+                    )
+                    or 1
+                ),
             )
 
             boxes_per_carton = max(
-                boxes_per_carton,
                 1,
+                int(
+                    getattr(
+                        product,
+                        "boxes_per_carton",
+                        1,
+                    )
+                    or 1
+                ),
             )
 
             tablets_per_box = (
@@ -1109,6 +1272,203 @@ class DashboardPage(QWidget):
             return f"{stock_units} unité(s)"
 
     # =============================================================
+    # PRIX UNITE BASE
+    # =============================================================
+
+    def get_sale_price_per_base_unit(
+        self,
+        product,
+    ):
+
+        direct_price = getattr(
+            product,
+            "price_per_comprime",
+            None,
+        )
+
+        try:
+            direct_price = float(
+                direct_price or 0
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            direct_price = 0.0
+
+        if direct_price > 0:
+            return direct_price
+
+        try:
+
+            price = float(
+                getattr(
+                    product,
+                    "price",
+                    0,
+                )
+                or 0
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            price = 0.0
+
+        if price <= 0:
+            return 0.0
+
+        packaging = str(
+            getattr(
+                product,
+                "packaging",
+                "Comprimé",
+            )
+            or "Comprimé"
+        ).strip().lower()
+
+        try:
+
+            tablets_per_blister = max(
+                1,
+                int(
+                    getattr(
+                        product,
+                        "units_per_plaquette",
+                        1,
+                    )
+                    or 1
+                ),
+            )
+
+            blisters_per_box = max(
+                1,
+                int(
+                    getattr(
+                        product,
+                        "units_per_box",
+                        1,
+                    )
+                    or 1
+                ),
+            )
+
+            boxes_per_carton = max(
+                1,
+                int(
+                    getattr(
+                        product,
+                        "boxes_per_carton",
+                        1,
+                    )
+                    or 1
+                ),
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            tablets_per_blister = 1
+            blisters_per_box = 1
+            boxes_per_carton = 1
+
+        tablets_per_box = (
+            tablets_per_blister
+            * blisters_per_box
+        )
+
+        tablets_per_carton = (
+            tablets_per_box
+            * boxes_per_carton
+        )
+
+        if "carton" in packaging:
+            return (
+                price
+                / tablets_per_carton
+            )
+
+        if (
+            "boîte" in packaging
+            or "boite" in packaging
+        ):
+            return (
+                price
+                / tablets_per_box
+            )
+
+        if "plaquette" in packaging:
+            return (
+                price
+                / tablets_per_blister
+            )
+
+        return price
+
+    # =============================================================
+    # VALEUR STOCK
+    # =============================================================
+
+    def calculate_stock_sale_value(
+        self,
+        products,
+        batches,
+    ):
+
+        total_value = 0.0
+
+        for product in products:
+
+            stock_units = (
+                self.get_product_stock(
+                    product,
+                    batches,
+                    include_expired=False,
+                )
+            )
+
+            if stock_units <= 0:
+                continue
+
+            unit_price = (
+                self.get_sale_price_per_base_unit(
+                    product
+                )
+            )
+
+            total_value += (
+                stock_units
+                * unit_price
+            )
+
+        return total_value
+
+    # =============================================================
+    # MONEY
+    # =============================================================
+
+    def format_money(
+        self,
+        amount,
+    ):
+
+        try:
+            amount = float(
+                amount or 0
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            amount = 0.0
+
+        return f"{amount:,.2f} CDF"
+
+    # =============================================================
     # KPI
     # =============================================================
 
@@ -1117,6 +1477,7 @@ class DashboardPage(QWidget):
         products,
         batches,
         sales,
+        expenses,
     ):
 
         total_products = len(
@@ -1126,7 +1487,7 @@ class DashboardPage(QWidget):
         today = date.today()
 
         # ---------------------------------------------------------
-        # STOCK TOTAL
+        # STOCK
         # ---------------------------------------------------------
 
         total_stock_units = 0
@@ -1141,8 +1502,15 @@ class DashboardPage(QWidget):
                 )
             )
 
+        stock_sale_value = (
+            self.calculate_stock_sale_value(
+                products,
+                batches,
+            )
+        )
+
         # ---------------------------------------------------------
-        # VENTES DE LA PERIODE
+        # VENTES PERIODE
         # ---------------------------------------------------------
 
         start_date, end_date = (
@@ -1185,6 +1553,37 @@ class DashboardPage(QWidget):
                 or 0
             )
             for sale in period_sales
+        )
+
+        # ---------------------------------------------------------
+        # DEPENSES
+        # ---------------------------------------------------------
+
+        period_expenses = (
+            self.get_period_expenses(
+                expenses
+            )
+        )
+
+        total_expenses = sum(
+            float(
+                getattr(
+                    expense,
+                    "amount",
+                    0,
+                )
+                or 0
+            )
+            for expense in period_expenses
+        )
+
+        expense_count = len(
+            period_expenses
+        )
+
+        financial_result = (
+            revenue
+            - total_expenses
         )
 
         # ---------------------------------------------------------
@@ -1250,7 +1649,7 @@ class DashboardPage(QWidget):
                 expired_batches += 1
 
         # ---------------------------------------------------------
-        # AFFICHAGE KPI
+        # KPI
         # ---------------------------------------------------------
 
         self.clear_layout(
@@ -1263,6 +1662,8 @@ class DashboardPage(QWidget):
                 "Produits",
                 total_products,
                 "💊",
+                "#175CD3",
+                "#EFF8FF",
             ),
 
             (
@@ -1271,30 +1672,88 @@ class DashboardPage(QWidget):
                     total_stock_units
                 ),
                 "📦",
+                "#1570EF",
+                "#EFF8FF",
             ),
 
             (
-                "Ventes",
+                "Valeur du stock",
+                self.format_money(
+                    stock_sale_value
+                ),
+                "💵",
+                "#039855",
+                "#ECFDF3",
+            ),
+
+            (
+                "Ventes encaissées",
                 total_sales,
                 "🛒",
+                "#7A5AF8",
+                "#F4F3FF",
             ),
 
             (
-                "Chiffre d'affaires",
-                f"{revenue:,.2f}",
+                "Montant encaissé",
+                self.format_money(
+                    revenue
+                ),
                 "💰",
+                "#039855",
+                "#ECFDF3",
+            ),
+
+            (
+                "Dépenses",
+                self.format_money(
+                    total_expenses
+                ),
+                "💸",
+                "#D92D20",
+                "#FEF3F2",
+            ),
+
+            (
+                "Nombre de dépenses",
+                expense_count,
+                "🧾",
+                "#B54708",
+                "#FFFAEB",
+            ),
+
+            (
+                "Résultat",
+                self.format_money(
+                    financial_result
+                ),
+                "📊",
+                (
+                    "#039855"
+                    if financial_result >= 0
+                    else "#D92D20"
+                ),
+                (
+                    "#ECFDF3"
+                    if financial_result >= 0
+                    else "#FEF3F2"
+                ),
             ),
 
             (
                 "Stock faible",
                 low_stock,
                 "⚠️",
+                "#B54708",
+                "#FFFAEB",
             ),
 
             (
                 "Lots expirés",
                 expired_batches,
                 "⛔",
+                "#D92D20",
+                "#FEF3F2",
             ),
         ]
 
@@ -1302,16 +1761,20 @@ class DashboardPage(QWidget):
             title,
             value,
             icon,
+            accent,
+            background,
         ) in enumerate(cards):
 
             card = self.create_kpi_card(
                 title,
                 value,
                 icon,
+                accent,
+                background,
             )
 
-            row = index // 3
-            column = index % 3
+            row = index // 4
+            column = index % 4
 
             self.kpi_grid.addWidget(
                 card,
@@ -1319,8 +1782,46 @@ class DashboardPage(QWidget):
                 column,
             )
 
+        # ---------------------------------------------------------
+        # PERIODE
+        # ---------------------------------------------------------
+
+        period_name = (
+            self.period_combo.currentText()
+        )
+
+        self.period_info.setText(
+            (
+                f"📅 Période analysée : "
+                f"{period_name}  •  "
+                f"{start_date.strftime('%d/%m/%Y')}"
+                f" → "
+                f"{end_date.strftime('%d/%m/%Y')}"
+            )
+        )
+
+        # ---------------------------------------------------------
+        # RESUME FINANCIER
+        # ---------------------------------------------------------
+
+        self.financial_text.setText(
+            (
+                f"💰 Encaissements : "
+                f"{self.format_money(revenue)}"
+                f"    •    "
+                f"💸 Dépenses : "
+                f"{self.format_money(total_expenses)}"
+                f"    •    "
+                f"📊 Résultat : "
+                f"{self.format_money(financial_result)}"
+                f"\n\n"
+                f"📦 Valeur actuelle du stock : "
+                f"{self.format_money(stock_sale_value)}"
+            )
+        )
+
     # =============================================================
-    # FORMAT STOCK TOTAL
+    # STOCK TOTAL
     # =============================================================
 
     def format_total_stock(
@@ -1352,8 +1853,8 @@ class DashboardPage(QWidget):
                 self.revenue_figure,
                 self.revenue_canvas,
             ) = self.create_chart_card(
-                "💰 Chiffre d'affaires",
-                "Évolution du chiffre d'affaires",
+                "💰 Encaissements",
+                "Évolution des ventes encaissées",
             )
 
             self.charts_grid.addWidget(
@@ -1431,7 +1932,7 @@ class DashboardPage(QWidget):
                 labels,
                 values,
                 marker="o",
-                linewidth=2,
+                linewidth=2.5,
             )
 
             ax.fill_between(
@@ -1441,11 +1942,11 @@ class DashboardPage(QWidget):
             )
 
         ax.set_title(
-            "Évolution du chiffre d'affaires"
+            "Montant encaissé par jour"
         )
 
         ax.set_ylabel(
-            "Montant"
+            "CDF"
         )
 
         ax.grid(
@@ -1548,7 +2049,7 @@ class DashboardPage(QWidget):
                 labels,
                 values,
                 marker="o",
-                linewidth=2,
+                linewidth=2.5,
             )
 
         ax.set_title(
@@ -1567,6 +2068,122 @@ class DashboardPage(QWidget):
         self.sales_figure.autofmt_xdate()
 
         self.sales_canvas.draw()
+
+    # =============================================================
+    # GRAPHIQUE DEPENSES
+    # =============================================================
+
+    def update_expenses_chart(
+        self,
+        expenses,
+    ):
+
+        if not hasattr(
+            self,
+            "expenses_card",
+        ):
+
+            (
+                self.expenses_card,
+                self.expenses_figure,
+                self.expenses_canvas,
+            ) = self.create_chart_card(
+                "💸 Dépenses",
+                "Évolution des dépenses par jour",
+            )
+
+            self.charts_grid.addWidget(
+                self.expenses_card,
+                1,
+                1,
+            )
+
+        start_date, end_date = (
+            self.get_selected_period()
+        )
+
+        data = defaultdict(float)
+
+        current = start_date
+
+        while current <= end_date:
+
+            data[current] = 0.0
+
+            current += timedelta(
+                days=1
+            )
+
+        for expense in expenses:
+
+            expense_date = (
+                self.get_expense_date(
+                    expense
+                )
+            )
+
+            if expense_date is None:
+                continue
+
+            if (
+                start_date
+                <= expense_date
+                <= end_date
+            ):
+
+                data[expense_date] += float(
+                    getattr(
+                        expense,
+                        "amount",
+                        0,
+                    )
+                    or 0
+                )
+
+        dates = sorted(
+            data.keys()
+        )
+
+        values = [
+            data[d]
+            for d in dates
+        ]
+
+        self.expenses_figure.clear()
+
+        ax = (
+            self.expenses_figure
+            .add_subplot(111)
+        )
+
+        if dates:
+
+            labels = [
+                d.strftime("%d/%m")
+                for d in dates
+            ]
+
+            ax.bar(
+                labels,
+                values,
+            )
+
+        ax.set_title(
+            "Dépenses par jour"
+        )
+
+        ax.set_ylabel(
+            "CDF"
+        )
+
+        ax.grid(
+            axis="y",
+            alpha=0.20,
+        )
+
+        self.expenses_figure.autofmt_xdate()
+
+        self.expenses_canvas.draw()
 
     # =============================================================
     # GRAPHIQUE STOCK
@@ -1589,7 +2206,7 @@ class DashboardPage(QWidget):
                 self.stock_canvas,
             ) = self.create_chart_card(
                 "📦 État du stock",
-                "Répartition des produits",
+                "Situation actuelle du stock",
             )
 
             self.charts_grid.addWidget(
@@ -1609,10 +2226,6 @@ class DashboardPage(QWidget):
 
             product_has_expired = False
             product_expires_soon = False
-
-            # -----------------------------------------------------
-            # Examiner les lots du produit
-            # -----------------------------------------------------
 
             product_batches = [
                 batch
@@ -1665,27 +2278,15 @@ class DashboardPage(QWidget):
 
                     product_expires_soon = True
 
-            # -----------------------------------------------------
-            # Priorité : expiré
-            # -----------------------------------------------------
-
             if product_has_expired:
 
                 expired += 1
 
                 continue
 
-            # -----------------------------------------------------
-            # Expiration prochaine
-            # -----------------------------------------------------
-
             if product_expires_soon:
 
                 expiring += 1
-
-            # -----------------------------------------------------
-            # Stock
-            # -----------------------------------------------------
 
             stock = self.get_product_stock(
                 product,
@@ -1781,10 +2382,6 @@ class DashboardPage(QWidget):
 
         valid_sale_ids = set()
 
-        # ---------------------------------------------------------
-        # FILTRE DES VENTES
-        # ---------------------------------------------------------
-
         for sale in sales:
 
             sale_date = (
@@ -1805,10 +2402,6 @@ class DashboardPage(QWidget):
                 valid_sale_ids.add(
                     sale.id
                 )
-
-        # ---------------------------------------------------------
-        # ARTICLES VENDUS
-        # ---------------------------------------------------------
 
         for sale in sales:
 
@@ -1863,21 +2456,6 @@ class DashboardPage(QWidget):
                     or 0
                 )
 
-                # -------------------------------------------------
-                # IMPORTANT
-                #
-                # quantity = quantité vendue dans l'unité choisie
-                #
-                # Exemple :
-                #
-                # 2 boîtes
-                # 5 plaquettes
-                # 10 comprimés
-                #
-                # On conserve ici la quantité commerciale
-                # enregistrée dans la vente.
-                # -------------------------------------------------
-
                 quantities[
                     product_id
                 ] += quantity
@@ -1889,10 +2467,6 @@ class DashboardPage(QWidget):
                     * unit_price
                 )
 
-        # ---------------------------------------------------------
-        # TRI
-        # ---------------------------------------------------------
-
         sorted_products = sorted(
             quantities.items(),
             key=lambda x: x[1],
@@ -1902,10 +2476,6 @@ class DashboardPage(QWidget):
         self.top_products_table.setRowCount(
             len(sorted_products)
         )
-
-        # ---------------------------------------------------------
-        # AFFICHAGE
-        # ---------------------------------------------------------
 
         for row, (
             product_id,
@@ -1948,11 +2518,11 @@ class DashboardPage(QWidget):
             )
 
             item_price = QTableWidgetItem(
-                f"{price:,.2f}"
+                f"{price:,.2f} CDF"
             )
 
             item_revenue = QTableWidgetItem(
-                f"{revenue:,.2f}"
+                f"{revenue:,.2f} CDF"
             )
 
             item_qty.setTextAlignment(
@@ -2011,10 +2581,6 @@ class DashboardPage(QWidget):
 
         alerts_found = False
 
-        # ---------------------------------------------------------
-        # ALERTES PAR LOT
-        # ---------------------------------------------------------
-
         for product in products:
 
             product_name = getattr(
@@ -2049,7 +2615,6 @@ class DashboardPage(QWidget):
                     or 0
                 )
 
-                # Aucun stock dans ce lot
                 if stock <= 0:
                     continue
 
@@ -2069,10 +2634,6 @@ class DashboardPage(QWidget):
                     )
                 )
 
-                # -------------------------------------------------
-                # LOT EXPIRE
-                # -------------------------------------------------
-
                 if (
                     expiry is not None
                     and expiry < today
@@ -2091,12 +2652,12 @@ class DashboardPage(QWidget):
 
                     lbl.setStyleSheet("""
                         background: #fef3f2;
-                        color: #d92d20;
-                        border: 1px solid #d92d20;
-                        border-radius: 6px;
-                        padding: 8px 12px;
+                        color: #b42318;
+                        border: 1px solid #fecdca;
+                        border-radius: 8px;
+                        padding: 10px 13px;
                         font-size: 13px;
-                        font-weight: 500;
+                        font-weight: 600;
                     """)
 
                     self.alerts_layout.addWidget(
@@ -2104,10 +2665,6 @@ class DashboardPage(QWidget):
                     )
 
                     continue
-
-                # -------------------------------------------------
-                # LOT EXPIRE DANS 30 JOURS
-                # -------------------------------------------------
 
                 if (
                     expiry is not None
@@ -2130,21 +2687,17 @@ class DashboardPage(QWidget):
 
                     lbl.setStyleSheet("""
                         background: #fffaeb;
-                        color: #f79009;
-                        border: 1px solid #f79009;
-                        border-radius: 6px;
-                        padding: 8px 12px;
+                        color: #b54708;
+                        border: 1px solid #fedf89;
+                        border-radius: 8px;
+                        padding: 10px 13px;
                         font-size: 13px;
-                        font-weight: 500;
+                        font-weight: 600;
                     """)
 
                     self.alerts_layout.addWidget(
                         lbl
                     )
-
-        # ---------------------------------------------------------
-        # ALERTES STOCK FAIBLE
-        # ---------------------------------------------------------
 
         for product in products:
 
@@ -2191,21 +2744,17 @@ class DashboardPage(QWidget):
 
                 lbl.setStyleSheet("""
                     background: #fffaeb;
-                    color: #f79009;
-                    border: 1px solid #f79009;
-                    border-radius: 6px;
-                    padding: 8px 12px;
+                    color: #b54708;
+                    border: 1px solid #fedf89;
+                    border-radius: 8px;
+                    padding: 10px 13px;
                     font-size: 13px;
-                    font-weight: 500;
+                    font-weight: 600;
                 """)
 
                 self.alerts_layout.addWidget(
                     lbl
                 )
-
-        # ---------------------------------------------------------
-        # AUCUNE ALERTE
-        # ---------------------------------------------------------
 
         if not alerts_found:
 
@@ -2216,11 +2765,11 @@ class DashboardPage(QWidget):
             no_alert.setStyleSheet("""
                 color: #027a48;
                 background: #ecfdf3;
-                border: 1px solid #12b76a;
-                border-radius: 6px;
-                padding: 8px 12px;
+                border: 1px solid #abefc6;
+                border-radius: 8px;
+                padding: 10px 13px;
                 font-size: 13px;
-                font-weight: 500;
+                font-weight: 600;
             """)
 
             self.alerts_layout.addWidget(

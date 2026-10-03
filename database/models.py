@@ -1,12 +1,14 @@
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import (
     String,
     Integer,
     Float,
     Date,
+    DateTime,
     ForeignKey,
     Boolean,
+    Text,
 )
 
 from sqlalchemy.orm import (
@@ -16,6 +18,7 @@ from sqlalchemy.orm import (
 )
 
 from database.database import Base
+
 
 # ============================================================
 # PRODUCT
@@ -44,18 +47,20 @@ class Product(Base):
         default="Général"
     )
 
+    # Unité de base
+    #
     # Exemple :
     # Comprimé
-    # Sirop
-    # Injection
-    # Matériel médical
+    # Flacon
+    # Ampoule
+    # Pièce
     base_unit: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
         default="Comprimé"
     )
 
-    # Conditionnement principal affiché dans l'interface.
+    # Conditionnement principal
     #
     # Exemples :
     # Plaquette
@@ -67,11 +72,7 @@ class Product(Base):
         default="Boîte"
     )
 
-    # Indique si le produit est un médicament.
-    #
-    # Si True :
-    # chaque lot doit obligatoirement avoir
-    # une date d'expiration.
+    # Produit médicament ou non
     is_medicine: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -82,30 +83,21 @@ class Product(Base):
     # UNIT CONVERSION
     # ========================================================
 
-    # Nombre de comprimés dans une plaquette.
-    #
-    # Exemple :
-    # 1 plaquette = 10 comprimés
+    # 1 plaquette = X comprimés
     units_per_plaquette: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=10
     )
 
-    # Nombre de plaquettes dans une boîte.
-    #
-    # Exemple :
-    # 1 boîte = 10 plaquettes
+    # 1 boîte = X plaquettes
     plaquettes_per_box: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=10
     )
 
-    # Nombre de boîtes dans un carton.
-    #
-    # Exemple :
-    # 1 carton = 10 boîtes
+    # 1 carton = X boîtes
     boxes_per_carton: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -116,10 +108,6 @@ class Product(Base):
     # LEGACY QUANTITY
     # ========================================================
 
-    # Ancien système.
-    # Conservé temporairement afin de ne pas casser
-    # les anciennes pages pendant la migration.
-    # Le nouveau système doit utiliser stock_units ou les ProductBatch.
     quantity: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -130,26 +118,23 @@ class Product(Base):
     # GLOBAL STOCK
     # ========================================================
 
-    # Stock total dans l'unité de base.
+    # Stock global dans l'unité de base.
     #
     # Exemple :
+    #
     # 1 carton
     # = 10 boîtes
     # = 100 plaquettes
     # = 1000 comprimés
     #
     # stock_units = 1000
-    #
-    # IMPORTANT :
-    # Ce champ représente le total de tous les lots.
-    # Les stocks individuels sont dans ProductBatch.
     stock_units: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0
     )
 
-    # Seuil minimum (exprimé dans l'unité de base).
+    # Seuil minimum en unité de base.
     min_quantity: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -160,35 +145,35 @@ class Product(Base):
     # SELLING PRICES
     # ========================================================
 
-    # Ancien prix principal (conservé pour compatibilité).
+    # Prix principal historique.
     price: Mapped[float] = mapped_column(
         Float,
         nullable=False,
         default=0.0
     )
 
-    # Prix de vente d'un comprimé.
+    # Prix d'un comprimé
     price_per_comprime: Mapped[float] = mapped_column(
         Float,
         nullable=False,
         default=0.0
     )
 
-    # Prix de vente d'une plaquette.
+    # Prix d'une plaquette
     price_per_plaquette: Mapped[float] = mapped_column(
         Float,
         nullable=False,
         default=0.0
     )
 
-    # Prix de vente d'une boîte.
+    # Prix d'une boîte
     price_per_box: Mapped[float] = mapped_column(
         Float,
         nullable=False,
         default=0.0
     )
 
-    # Prix de vente d'un carton.
+    # Prix d'un carton
     price_per_carton: Mapped[float] = mapped_column(
         Float,
         nullable=False,
@@ -198,9 +183,6 @@ class Product(Base):
     # ========================================================
     # LEGACY PRODUCT INFORMATION
     # ========================================================
-
-    # Ces champs sont conservés pour faciliter la migration de l'ancien système.
-    # Ils ne doivent plus être utilisés pour gérer les lots.
 
     batch_number: Mapped[str] = mapped_column(
         String(50),
@@ -239,7 +221,6 @@ class Product(Base):
     # RELATIONSHIPS
     # ========================================================
 
-    # Un produit peut avoir plusieurs lots.
     batches = relationship(
         "ProductBatch",
         back_populates="product",
@@ -247,7 +228,6 @@ class Product(Base):
         order_by="ProductBatch.expiry_date"
     )
 
-    # Un produit peut apparaître dans plusieurs lignes de vente.
     sale_items = relationship(
         "SaleItem",
         back_populates="product"
@@ -288,8 +268,6 @@ class ProductBatch(Base):
     # BATCH INFORMATION
     # ========================================================
 
-    # Numéro du lot.
-    # Exemple : PAR-2026-001
     batch_number: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
@@ -300,8 +278,6 @@ class ProductBatch(Base):
     # EXPIRATION
     # ========================================================
 
-    # Date d'expiration du lot.
-    # Pour un médicament : cette valeur doit être renseignée.
     expiry_date: Mapped[date | None] = mapped_column(
         Date,
         nullable=True,
@@ -312,8 +288,6 @@ class ProductBatch(Base):
     # STOCK
     # ========================================================
 
-    # Stock de CE LOT dans l'unité de base.
-    # Exemple : Lot A : 5000 comprimés
     stock_units: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -324,31 +298,24 @@ class ProductBatch(Base):
     # PURCHASE INFORMATION
     # ========================================================
 
-    # Quantité reçue lors de l'achat, dans l'unité d'achat.
-    # Exemple : 5 cartons
     purchase_quantity: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0
     )
 
-    # Unité utilisée lors de l'achat.
-    # Exemples : Comprimé, Plaquette, Boîte, Carton
     purchase_unit: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
         default="Boîte"
     )
 
-    # Prix d'achat d'une unité d'achat.
-    # Exemple : 1 carton = 25 000 FC
     purchase_price: Mapped[float] = mapped_column(
         Float,
         nullable=False,
         default=0.0
     )
 
-    # Fournisseur ayant livré ce lot.
     supplier: Mapped[str] = mapped_column(
         String(150),
         nullable=False,
@@ -369,7 +336,6 @@ class ProductBatch(Base):
     # ACTIVE STATUS
     # ========================================================
 
-    # Permet de désactiver un lot sans le supprimer de l'historique.
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -511,7 +477,6 @@ class SaleItem(Base):
     # BATCH
     # ========================================================
 
-    # Lot réellement utilisé pour cette vente.
     batch_id: Mapped[int | None] = mapped_column(
         ForeignKey(
             "product_batches.id"
@@ -529,7 +494,6 @@ class SaleItem(Base):
     # QUANTITY
     # ========================================================
 
-    # Quantité vendue dans l'unité choisie.
     quantity: Mapped[int] = mapped_column(
         Integer,
         nullable=False
@@ -539,7 +503,6 @@ class SaleItem(Base):
     # SALE UNIT
     # ========================================================
 
-    # Unité choisie par le vendeur (Comprimé, Plaquette, Boîte, Carton).
     sale_unit: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
@@ -570,7 +533,6 @@ class SaleItem(Base):
     # STOCK CONVERSION
     # ========================================================
 
-    # Quantité retirée du stock en unité de base.
     stock_units: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -595,3 +557,141 @@ class SaleItem(Base):
         nullable=False,
         default=""
     )
+
+
+# ============================================================
+# EXPENSE
+# ============================================================
+
+class Expense(Base):
+    """
+    Dépense manuelle de la pharmacie.
+
+    Exemples :
+        - Nourriture
+        - Transport
+        - Électricité
+        - Eau
+        - Internet
+        - Fournitures
+        - Entretien
+        - Salaire
+        - Loyer
+        - Autre
+    """
+
+    __tablename__ = "expenses"
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    # ========================================================
+    # EXPENSE NAME
+    # ========================================================
+
+    # Exemple :
+    # "Déjeuner du personnel"
+    # "Transport fournisseur"
+    # "Achat papier"
+    description: Mapped[str] = mapped_column(
+        String(200),
+        nullable=False,
+        index=True
+    )
+
+    # ========================================================
+    # CATEGORY
+    # ========================================================
+
+    category: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        default="Autre",
+        index=True
+    )
+
+    # ========================================================
+    # AMOUNT
+    # ========================================================
+
+    # Montant de la dépense en CDF.
+    amount: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        default=0.0
+    )
+
+    # ========================================================
+    # EXPENSE DATE
+    # ========================================================
+
+    expense_date: Mapped[date] = mapped_column(
+        Date,
+        nullable=False,
+        default=date.today,
+        index=True
+    )
+
+    # ========================================================
+    # PAYMENT METHOD
+    # ========================================================
+
+    payment_method: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="Espèces"
+    )
+
+    # ========================================================
+    # NOTE
+    # ========================================================
+
+    note: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default=""
+    )
+
+    # ========================================================
+    # USER WHO CREATED THE EXPENSE
+    # ========================================================
+
+    # On conserve le nom de l'utilisateur
+    # sans créer de dépendance avec la table User.
+    #
+    # Exemple :
+    # Administrateur
+    # Jean
+    # Marie
+    created_by: Mapped[str] = mapped_column(
+        String(150),
+        nullable=False,
+        default=""
+    )
+
+    # ========================================================
+    # CREATED AT
+    # ========================================================
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=datetime.now
+    )
+
+    # ========================================================
+    # REPRESENTATION
+    # ========================================================
+
+    def __repr__(self) -> str:
+        return (
+            f"<Expense("
+            f"id={self.id}, "
+            f"description='{self.description}', "
+            f"category='{self.category}', "
+            f"amount={self.amount}, "
+            f"expense_date={self.expense_date}"
+            f")>"
+        )

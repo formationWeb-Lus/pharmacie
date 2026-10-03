@@ -1,3 +1,4 @@
+
 from datetime import date, datetime
 
 from PySide6.QtCore import Qt
@@ -45,25 +46,20 @@ class SalesPage(QWidget):
     """
     Page de gestion des ventes.
 
-    Fonctionnalités principales :
+    Fonctionnalités :
 
-    - Recherche de médicaments
-    - Choix du conditionnement :
-        Comprimé
-        Plaquette
-        Boîte
-        Carton
+    - Recherche des médicaments
+    - Sélection du conditionnement
     - Prix automatique selon le conditionnement
-    - Conversion automatique vers l'unité de base
-    - Gestion du panier
+    - Conversion en unités de base
+    - Panier
     - Vérification du stock
-    - Gestion des dates d'expiration
-    - FEFO :
-        First Expired, First Out
-    - Le lot qui expire le premier est consommé en premier
-    - Gestion de plusieurs lots pour une même vente
-    - Mise à jour du stock global
+    - Gestion des lots
+    - FEFO : First Expired, First Out
+    - Diminution automatique du stock lors de la vente
     - Mise à jour du stock des lots
+    - Mise à jour du stock global du produit
+    - Vente répartie sur plusieurs lots
     - Génération de facture PDF
     """
 
@@ -98,12 +94,10 @@ class SalesPage(QWidget):
         self.search_products()
 
     # =========================================================
-    # UI PRINCIPALE
+    # INTERFACE
     # =========================================================
 
     def setup_ui(self):
-        """Construit l'interface complète."""
-
         self.setObjectName("SalesPage")
 
         self.setStyleSheet(
@@ -338,8 +332,8 @@ class SalesPage(QWidget):
         title.setProperty("class", "title")
 
         subtitle = QLabel(
-            "Sélectionnez les médicaments, choisissez le conditionnement "
-            "et validez la vente."
+            "Sélectionnez les médicaments, choisissez le "
+            "conditionnement et validez la vente."
         )
         subtitle.setProperty("class", "subtitle")
 
@@ -387,11 +381,9 @@ class SalesPage(QWidget):
         search_layout.setSpacing(10)
 
         self.search_input = QLineEdit()
-
         self.search_input.setPlaceholderText(
             "Rechercher un médicament..."
         )
-
         self.search_input.setClearButtonEnabled(True)
 
         self.search_input.textChanged.connect(
@@ -402,30 +394,19 @@ class SalesPage(QWidget):
             self.add_first_product
         )
 
-        search_layout.addWidget(
-            self.search_input
-        )
+        search_layout.addWidget(self.search_input)
 
         self.packaging_combo = QComboBox()
-
-        self.packaging_combo.addItems(
-            self.PACKAGING
-        )
-
+        self.packaging_combo.addItems(self.PACKAGING)
         self.packaging_combo.setMinimumWidth(160)
 
         self.packaging_combo.currentTextChanged.connect(
             self.on_packaging_changed
         )
 
-        search_layout.addWidget(
-            self.packaging_combo
-        )
+        search_layout.addWidget(self.packaging_combo)
 
-        self.add_product_button = QPushButton(
-            "+ Ajouter"
-        )
-
+        self.add_product_button = QPushButton("+ Ajouter")
         self.add_product_button.setProperty(
             "class",
             "primary",
@@ -435,16 +416,11 @@ class SalesPage(QWidget):
             self.add_selected_product
         )
 
-        search_layout.addWidget(
-            self.add_product_button
-        )
+        search_layout.addWidget(self.add_product_button)
 
-        products_layout.addLayout(
-            search_layout
-        )
+        products_layout.addLayout(search_layout)
 
         self.product_list = QListWidget()
-
         self.product_list.setMinimumHeight(220)
         self.product_list.setMaximumHeight(350)
 
@@ -456,46 +432,27 @@ class SalesPage(QWidget):
             self.on_product_selected
         )
 
-        products_layout.addWidget(
-            self.product_list
-        )
+        products_layout.addWidget(self.product_list)
 
-        main_layout.addWidget(
-            products_card
-        )
+        main_layout.addWidget(products_card)
 
         # =====================================================
         # PANIER
         # =====================================================
 
         cart_card = QFrame()
-        cart_card.setProperty(
-            "class",
-            "card",
-        )
+        cart_card.setProperty("class", "card")
 
         cart_layout = QVBoxLayout(cart_card)
-
-        cart_layout.setContentsMargins(
-            18,
-            18,
-            18,
-            18,
-        )
-
+        cart_layout.setContentsMargins(18, 18, 18, 18)
         cart_layout.setSpacing(14)
 
         cart_title_layout = QHBoxLayout()
 
         cart_title = QLabel("Panier")
-        cart_title.setProperty(
-            "class",
-            "sectionTitle",
-        )
+        cart_title.setProperty("class", "sectionTitle")
 
-        self.cart_status_label = QLabel(
-            "Aucun article"
-        )
+        self.cart_status_label = QLabel("Aucun article")
 
         self.cart_status_label.setStyleSheet(
             """
@@ -507,22 +464,13 @@ class SalesPage(QWidget):
             """
         )
 
-        cart_title_layout.addWidget(
-            cart_title
-        )
-
+        cart_title_layout.addWidget(cart_title)
         cart_title_layout.addStretch()
+        cart_title_layout.addWidget(self.cart_status_label)
 
-        cart_title_layout.addWidget(
-            self.cart_status_label
-        )
-
-        cart_layout.addLayout(
-            cart_title_layout
-        )
+        cart_layout.addLayout(cart_title_layout)
 
         self.cart_table = QTableWidget()
-
         self.cart_table.setColumnCount(6)
 
         self.cart_table.setHorizontalHeaderLabels(
@@ -548,9 +496,7 @@ class SalesPage(QWidget):
             QAbstractItemView.SelectionMode.SingleSelection
         )
 
-        self.cart_table.verticalHeader().setVisible(
-            False
-        )
+        self.cart_table.verticalHeader().setVisible(False)
 
         header = self.cart_table.horizontalHeader()
 
@@ -570,22 +516,12 @@ class SalesPage(QWidget):
             QHeaderView.ResizeMode.Fixed,
         )
 
-        self.cart_table.setColumnWidth(
-            5,
-            90,
-        )
+        self.cart_table.setColumnWidth(5, 90)
+        self.cart_table.setMinimumHeight(250)
 
-        self.cart_table.setMinimumHeight(
-            250
-        )
+        cart_layout.addWidget(self.cart_table)
 
-        cart_layout.addWidget(
-            self.cart_table
-        )
-
-        main_layout.addWidget(
-            cart_card
-        )
+        main_layout.addWidget(cart_card)
 
         # =====================================================
         # BAS
@@ -599,128 +535,49 @@ class SalesPage(QWidget):
         # =====================================================
 
         payment_card = QFrame()
-        payment_card.setProperty(
-            "class",
-            "card",
-        )
+        payment_card.setProperty("class", "card")
 
-        payment_layout = QVBoxLayout(
-            payment_card
-        )
-
-        payment_layout.setContentsMargins(
-            18,
-            18,
-            18,
-            18,
-        )
-
+        payment_layout = QVBoxLayout(payment_card)
+        payment_layout.setContentsMargins(18, 18, 18, 18)
         payment_layout.setSpacing(14)
 
-        payment_title = QLabel(
-            "Paiement"
-        )
+        payment_title = QLabel("Paiement")
+        payment_title.setProperty("class", "sectionTitle")
 
-        payment_title.setProperty(
-            "class",
-            "sectionTitle",
-        )
-
-        payment_layout.addWidget(
-            payment_title
-        )
+        payment_layout.addWidget(payment_title)
 
         payment_grid = QGridLayout()
+        payment_grid.setHorizontalSpacing(12)
+        payment_grid.setVerticalSpacing(10)
 
-        payment_grid.setHorizontalSpacing(
-            12
-        )
-
-        payment_grid.setVerticalSpacing(
-            10
-        )
-
-        payment_label = QLabel(
-            "Mode de paiement"
-        )
-
-        payment_label.setProperty(
-            "class",
-            "fieldLabel",
-        )
+        payment_label = QLabel("Mode de paiement")
+        payment_label.setProperty("class", "fieldLabel")
 
         self.payment_combo = QComboBox()
+        self.payment_combo.addItems(self.PAYMENT_METHODS)
 
-        self.payment_combo.addItems(
-            self.PAYMENT_METHODS
-        )
+        payment_grid.addWidget(payment_label, 0, 0)
+        payment_grid.addWidget(self.payment_combo, 1, 0)
 
-        payment_grid.addWidget(
-            payment_label,
-            0,
-            0,
-        )
-
-        payment_grid.addWidget(
-            self.payment_combo,
-            1,
-            0,
-        )
-
-        discount_label = QLabel(
-            "Remise"
-        )
-
-        discount_label.setProperty(
-            "class",
-            "fieldLabel",
-        )
+        discount_label = QLabel("Remise")
+        discount_label.setProperty("class", "fieldLabel")
 
         self.discount_input = QDoubleSpinBox()
-
-        self.discount_input.setDecimals(
-            2
-        )
-
-        self.discount_input.setMinimum(
-            0.0
-        )
-
-        self.discount_input.setMaximum(
-            999999999.0
-        )
-
-        self.discount_input.setSingleStep(
-            1.0
-        )
-
-        self.discount_input.setValue(
-            0.0
-        )
-
-        self.discount_input.setSuffix(
-            " FC"
-        )
+        self.discount_input.setDecimals(2)
+        self.discount_input.setMinimum(0.0)
+        self.discount_input.setMaximum(999999999.0)
+        self.discount_input.setSingleStep(1.0)
+        self.discount_input.setValue(0.0)
+        self.discount_input.setSuffix(" FC")
 
         self.discount_input.valueChanged.connect(
             self.update_totals
         )
 
-        payment_grid.addWidget(
-            discount_label,
-            0,
-            1,
-        )
+        payment_grid.addWidget(discount_label, 0, 1)
+        payment_grid.addWidget(self.discount_input, 1, 1)
 
-        payment_grid.addWidget(
-            self.discount_input,
-            1,
-            1,
-        )
-
-        payment_layout.addLayout(
-            payment_grid
-        )
+        payment_layout.addLayout(payment_grid)
 
         payment_info = QLabel(
             "Le stock est contrôlé une dernière fois lors "
@@ -728,9 +585,7 @@ class SalesPage(QWidget):
             "sont consommés en priorité."
         )
 
-        payment_info.setWordWrap(
-            True
-        )
+        payment_info.setWordWrap(True)
 
         payment_info.setStyleSheet(
             """
@@ -741,79 +596,35 @@ class SalesPage(QWidget):
             """
         )
 
-        payment_layout.addWidget(
-            payment_info
-        )
-
+        payment_layout.addWidget(payment_info)
         payment_layout.addStretch()
 
-        bottom_layout.addWidget(
-            payment_card,
-            1,
-        )
+        bottom_layout.addWidget(payment_card, 1)
 
         # =====================================================
-        # RÉSUMÉ
+        # RESUME
         # =====================================================
 
         summary_card = QFrame()
-        summary_card.setProperty(
-            "class",
-            "card",
-        )
+        summary_card.setProperty("class", "card")
 
-        summary_layout = QVBoxLayout(
-            summary_card
-        )
-
-        summary_layout.setContentsMargins(
-            18,
-            18,
-            18,
-            18,
-        )
-
+        summary_layout = QVBoxLayout(summary_card)
+        summary_layout.setContentsMargins(18, 18, 18, 18)
         summary_layout.setSpacing(12)
 
-        summary_title = QLabel(
-            "Résumé"
-        )
+        summary_title = QLabel("Résumé")
+        summary_title.setProperty("class", "sectionTitle")
 
-        summary_title.setProperty(
-            "class",
-            "sectionTitle",
-        )
+        summary_layout.addWidget(summary_title)
 
-        summary_layout.addWidget(
-            summary_title
-        )
+        self.subtotal_label = QLabel("0.00")
+        self.subtotal_label.setProperty("class", "valueLabel")
 
-        self.subtotal_label = QLabel(
-            "0.00"
-        )
+        self.discount_label = QLabel("0.00")
+        self.discount_label.setProperty("class", "valueLabel")
 
-        self.subtotal_label.setProperty(
-            "class",
-            "valueLabel",
-        )
-
-        self.discount_label = QLabel(
-            "0.00"
-        )
-
-        self.discount_label.setProperty(
-            "class",
-            "valueLabel",
-        )
-
-        self.total_label = QLabel(
-            "0.00"
-        )
-
-        self.total_label.setProperty(
-            "class",
-            "totalLabel",
-        )
+        self.total_label = QLabel("0.00")
+        self.total_label.setProperty("class", "totalLabel")
 
         self._add_summary_row(
             summary_layout,
@@ -828,15 +639,9 @@ class SalesPage(QWidget):
         )
 
         separator = QFrame()
+        separator.setProperty("class", "separator")
 
-        separator.setProperty(
-            "class",
-            "separator",
-        )
-
-        summary_layout.addWidget(
-            separator
-        )
+        summary_layout.addWidget(separator)
 
         self._add_summary_row(
             summary_layout,
@@ -855,27 +660,17 @@ class SalesPage(QWidget):
             "primary",
         )
 
-        self.validate_button.setMinimumHeight(
-            48
-        )
+        self.validate_button.setMinimumHeight(48)
 
         self.validate_button.clicked.connect(
             self.validate_sale
         )
 
-        summary_layout.addWidget(
-            self.validate_button
-        )
+        summary_layout.addWidget(self.validate_button)
 
-        bottom_layout.addWidget(
-            summary_card,
-            1,
-        )
+        bottom_layout.addWidget(summary_card, 1)
 
-        main_layout.addLayout(
-            bottom_layout
-        )
-
+        main_layout.addLayout(bottom_layout)
         main_layout.addStretch()
 
     # =========================================================
@@ -890,58 +685,28 @@ class SalesPage(QWidget):
     ):
         row = QHBoxLayout()
 
-        label = QLabel(
-            label_text
-        )
+        label = QLabel(label_text)
+        label.setProperty("class", "fieldLabel")
 
-        label.setProperty(
-            "class",
-            "fieldLabel",
-        )
-
-        row.addWidget(
-            label
-        )
-
+        row.addWidget(label)
         row.addStretch()
+        row.addWidget(value_label)
 
-        row.addWidget(
-            value_label
-        )
-
-        layout.addLayout(
-            row
-        )
+        layout.addLayout(row)
 
     def _format_money(self, value):
         try:
             return f"{float(value):,.2f}"
-        except (
-            TypeError,
-            ValueError,
-        ):
+        except (TypeError, ValueError):
             return "0.00"
 
     def _get_cart_quantity(self):
-        """
-        Nombre de conditionnements dans le panier.
-
-        Exemple :
-        2 boîtes + 3 plaquettes = 5 articles.
-        """
-
         total = 0
 
         for item in self.cart:
             try:
-                total += int(
-                    item["quantity"]
-                )
-            except (
-                KeyError,
-                TypeError,
-                ValueError,
-            ):
+                total += int(item["quantity"])
+            except (KeyError, TypeError, ValueError):
                 pass
 
         return total
@@ -956,21 +721,16 @@ class SalesPage(QWidget):
         packaging,
         quantity,
     ):
-        """
-        Convertit une quantité vendue en unités de base.
-
-        Exemple :
-
-        1 comprimé  = 1
-        1 plaquette = 10 comprimés
-        1 boîte     = 100 comprimés
-        1 carton    = 1000 comprimés
-        """
-
         units_per_packaging = get_units_for_packaging(
             product,
             packaging,
         )
+
+        if units_per_packaging <= 0:
+            raise ValueError(
+                f"Le conditionnement « {packaging} » "
+                "possède une conversion invalide."
+            )
 
         return int(
             quantity * units_per_packaging
@@ -987,20 +747,14 @@ class SalesPage(QWidget):
         include_expired=False,
     ):
         """
-        Retourne les lots du produit dans l'ordre FEFO.
-
-        FEFO = First Expired, First Out.
-
-        Le lot avec la date d'expiration la plus proche
-        est retourné en premier.
+        Retourne les lots disponibles en ordre FEFO.
         """
 
         try:
             batches = (
                 session.query(ProductBatch)
                 .filter(
-                    ProductBatch.product_id
-                    == product_id
+                    ProductBatch.product_id == product_id
                 )
                 .order_by(
                     ProductBatch.expiry_date.asc(),
@@ -1008,14 +762,15 @@ class SalesPage(QWidget):
                 )
                 .all()
             )
+
         except Exception:
             return []
 
         result = []
-
         today = date.today()
 
         for batch in batches:
+
             stock = int(
                 getattr(
                     batch,
@@ -1034,10 +789,7 @@ class SalesPage(QWidget):
                 None,
             )
 
-            if isinstance(
-                expiry,
-                datetime,
-            ):
+            if isinstance(expiry, datetime):
                 expiry = expiry.date()
 
             if (
@@ -1047,9 +799,7 @@ class SalesPage(QWidget):
             ):
                 continue
 
-            result.append(
-                batch
-            )
+            result.append(batch)
 
         return result
 
@@ -1058,11 +808,6 @@ class SalesPage(QWidget):
         session,
         product_id,
     ):
-        """
-        Retourne le stock total disponible dans les
-        lots non expirés.
-        """
-
         batches = self._get_product_batches(
             session,
             product_id,
@@ -1081,26 +826,15 @@ class SalesPage(QWidget):
             for batch in batches
         )
 
-    def _format_expiry(
-        self,
-        expiry,
-    ):
+    def _format_expiry(self, expiry):
         if expiry is None:
             return "Date inconnue"
 
-        if isinstance(
-            expiry,
-            datetime,
-        ):
+        if isinstance(expiry, datetime):
             expiry = expiry.date()
 
-        if isinstance(
-            expiry,
-            date,
-        ):
-            return expiry.strftime(
-                "%d/%m/%Y"
-            )
+        if isinstance(expiry, date):
+            return expiry.strftime("%d/%m/%Y")
 
         return str(expiry)
 
@@ -1116,18 +850,6 @@ class SalesPage(QWidget):
     ):
         """
         Simule la consommation FEFO sans modifier la base.
-
-        Retourne une liste :
-
-        [
-            {
-                "batch": lot,
-                "units": quantité consommée,
-            }
-        ]
-
-        Le lot expirant le plus tôt est toujours utilisé
-        en premier.
         """
 
         if required_units <= 0:
@@ -1139,13 +861,11 @@ class SalesPage(QWidget):
             include_expired=False,
         )
 
-        remaining = int(
-            required_units
-        )
-
+        remaining = int(required_units)
         allocations = []
 
         for batch in batches:
+
             if remaining <= 0:
                 break
 
@@ -1180,60 +900,11 @@ class SalesPage(QWidget):
 
         return allocations
 
-    def _consume_fefo(
-        self,
-        session,
-        product,
-        required_units,
-    ):
-        """
-        Consomme réellement le stock selon FEFO.
-
-        Retourne les allocations effectuées.
-        """
-
-        allocations = self._simulate_fefo(
-            session,
-            product,
-            required_units,
-        )
-
-        if allocations is None:
-            raise ValueError(
-                (
-                    f"Stock insuffisant pour "
-                    f"« {product.name} »."
-                )
-            )
-
-        for allocation in allocations:
-            batch = allocation["batch"]
-            units = allocation["units"]
-
-            current_stock = int(
-                getattr(
-                    batch,
-                    "stock_units",
-                    0,
-                )
-                or 0
-            )
-
-            batch.stock_units = (
-                current_stock - units
-            )
-
-        return allocations
-
     # =========================================================
     # RECHERCHE
     # =========================================================
 
-    def search_products(
-        self,
-        text=None,
-    ):
-        """Recherche les produits."""
+    def search_products(self, text=None):
 
         if text is None:
             text = self.search_input.text()
@@ -1245,9 +916,8 @@ class SalesPage(QWidget):
         session = SessionLocal()
 
         try:
-            query = session.query(
-                Product
-            )
+
+            query = session.query(Product)
 
             if text:
                 query = query.filter(
@@ -1258,19 +928,16 @@ class SalesPage(QWidget):
 
             products = (
                 query
-                .order_by(
-                    Product.name.asc()
-                )
+                .order_by(Product.name.asc())
                 .limit(100)
                 .all()
             )
 
             for product in products:
-                self._add_product_to_list(
-                    product
-                )
+                self._add_product_to_list(product)
 
         except Exception as error:
+
             QMessageBox.critical(
                 self,
                 "Erreur",
@@ -1284,16 +951,10 @@ class SalesPage(QWidget):
         finally:
             session.close()
 
-    def _add_product_to_list(
-        self,
-        product,
-    ):
-        """Ajoute un produit à la liste."""
+    def _add_product_to_list(self, product):
 
         try:
-            stock_text = get_stock_display(
-                product
-            )
+            stock_text = get_stock_display(product)
         except Exception:
             stock_text = "Stock indisponible"
 
@@ -1303,14 +964,11 @@ class SalesPage(QWidget):
                 self.packaging_combo.currentText(),
             )
         except Exception:
-            price = (
-                getattr(
-                    product,
-                    "price",
-                    0.0,
-                )
-                or 0.0
-            )
+            price = getattr(
+                product,
+                "price",
+                0.0,
+            ) or 0.0
 
         item = QListWidgetItem()
 
@@ -1326,12 +984,10 @@ class SalesPage(QWidget):
             f"{self._format_money(price)}"
         )
 
-        self.product_list.addItem(
-            item
-        )
+        self.product_list.addItem(item)
 
     # =========================================================
-    # PRODUIT SÉLECTIONNÉ
+    # PRODUIT SELECTIONNE
     # =========================================================
 
     def on_product_selected(
@@ -1353,18 +1009,9 @@ class SalesPage(QWidget):
             product_id
         )
 
-    def on_packaging_changed(
-        self,
-        packaging,
-    ):
-        """
-        Change immédiatement le prix affiché
-        lorsque le vendeur change de conditionnement.
-        """
+    def on_packaging_changed(self, packaging):
 
-        current_item = (
-            self.product_list.currentItem()
-        )
+        current_item = self.product_list.currentItem()
 
         if current_item is None:
             return
@@ -1387,11 +1034,10 @@ class SalesPage(QWidget):
         session = SessionLocal()
 
         try:
+
             product = (
                 session.query(Product)
-                .filter(
-                    Product.id == product_id
-                )
+                .filter(Product.id == product_id)
                 .first()
             )
 
@@ -1399,9 +1045,7 @@ class SalesPage(QWidget):
                 return
 
             try:
-                stock_text = get_stock_display(
-                    product
-                )
+                stock_text = get_stock_display(product)
             except Exception:
                 stock_text = "Stock indisponible"
 
@@ -1411,18 +1055,13 @@ class SalesPage(QWidget):
                     self.packaging_combo.currentText(),
                 )
             except Exception:
-                price = (
-                    getattr(
-                        product,
-                        "price",
-                        0.0,
-                    )
-                    or 0.0
-                )
+                price = getattr(
+                    product,
+                    "price",
+                    0.0,
+                ) or 0.0
 
-            item = (
-                self.product_list.currentItem()
-            )
+            item = self.product_list.currentItem()
 
             if item is not None:
                 item.setText(
@@ -1440,17 +1079,14 @@ class SalesPage(QWidget):
     # =========================================================
 
     def add_first_product(self):
+
         if self.product_list.count() == 0:
             return
 
-        self.product_list.setCurrentRow(
-            0
-        )
-
+        self.product_list.setCurrentRow(0)
         self.add_selected_product()
 
     def add_selected_product(self):
-        """Ajoute le produit sélectionné."""
 
         item = self.product_list.currentItem()
 
@@ -1472,11 +1108,10 @@ class SalesPage(QWidget):
         session = SessionLocal()
 
         try:
+
             product = (
                 session.query(Product)
-                .filter(
-                    Product.id == product_id
-                )
+                .filter(Product.id == product_id)
                 .first()
             )
 
@@ -1488,9 +1123,7 @@ class SalesPage(QWidget):
                 )
                 return
 
-            packaging = (
-                self.packaging_combo.currentText()
-            )
+            packaging = self.packaging_combo.currentText()
 
             self._add_product_to_cart(
                 product,
@@ -1499,6 +1132,7 @@ class SalesPage(QWidget):
             )
 
         except Exception as error:
+
             QMessageBox.critical(
                 self,
                 "Erreur",
@@ -1517,11 +1151,6 @@ class SalesPage(QWidget):
         packaging,
         session=None,
     ):
-        """
-        Ajoute un produit au panier.
-
-        Une ligne du panier représente un conditionnement.
-        """
 
         if session is None:
             session = SessionLocal()
@@ -1530,30 +1159,23 @@ class SalesPage(QWidget):
             close_session = False
 
         try:
-            units_per_packaging = (
-                get_units_for_packaging(
-                    product,
-                    packaging,
-                )
+
+            units_per_packaging = get_units_for_packaging(
+                product,
+                packaging,
             )
 
             if units_per_packaging <= 0:
                 raise ValueError(
-                    (
-                        f"Le conditionnement "
-                        f"« {packaging} » est invalide."
-                    )
+                    f"Le conditionnement "
+                    f"« {packaging} » est invalide."
                 )
 
-            valid_stock = (
-                self._get_valid_batch_stock(
-                    session,
-                    product.id,
-                )
+            valid_stock = self._get_valid_batch_stock(
+                session,
+                product.id,
             )
 
-            # Fallback pour les anciennes bases
-            # qui n'ont pas encore de lots.
             if valid_stock <= 0:
                 valid_stock = int(
                     getattr(
@@ -1565,8 +1187,7 @@ class SalesPage(QWidget):
                 )
 
             available_packages = (
-                valid_stock
-                // units_per_packaging
+                valid_stock // units_per_packaging
             )
 
             if available_packages <= 0:
@@ -1584,39 +1205,29 @@ class SalesPage(QWidget):
                 return
 
             try:
-                unit_price = (
-                    get_price_for_packaging(
-                        product,
-                        packaging,
-                    )
+                unit_price = get_price_for_packaging(
+                    product,
+                    packaging,
                 )
             except Exception:
-                unit_price = (
-                    getattr(
-                        product,
-                        "price",
-                        0.0,
-                    )
-                    or 0.0
-                )
+                unit_price = getattr(
+                    product,
+                    "price",
+                    0.0,
+                ) or 0.0
 
-            # Cherche une ligne identique.
             for item in self.cart:
+
                 if (
-                    item["product_id"]
-                    == product.id
-                    and item["sale_unit"]
-                    == packaging
+                    item["product_id"] == product.id
+                    and item["sale_unit"] == packaging
                 ):
+
                     new_quantity = (
-                        item["quantity"]
-                        + 1
+                        item["quantity"] + 1
                     )
 
-                    if (
-                        new_quantity
-                        > available_packages
-                    ):
+                    if new_quantity > available_packages:
                         QMessageBox.warning(
                             self,
                             "Stock insuffisant",
@@ -1630,9 +1241,7 @@ class SalesPage(QWidget):
                         )
                         return
 
-                    item["quantity"] = (
-                        new_quantity
-                    )
+                    item["quantity"] = new_quantity
 
                     self.update_cart_ui()
                     return
@@ -1643,15 +1252,14 @@ class SalesPage(QWidget):
                     "product_name": product.name,
                     "sale_unit": packaging,
                     "quantity": 1,
-                    "unit_price": float(
-                        unit_price
-                    ),
+                    "unit_price": float(unit_price),
                 }
             )
 
             self.update_cart_ui()
 
         finally:
+
             if close_session:
                 session.close()
 
@@ -1660,48 +1268,24 @@ class SalesPage(QWidget):
     # =========================================================
 
     def update_cart_ui(self):
-        """Reconstruit le panier."""
 
-        self.cart_table.setRowCount(
-            0
-        )
+        self.cart_table.setRowCount(0)
 
-        for row, cart_item in enumerate(
-            self.cart
-        ):
-            self.cart_table.insertRow(
-                row
-            )
+        for row, cart_item in enumerate(self.cart):
 
-            self.cart_table.setRowHeight(
-                row,
-                58,
-            )
+            self.cart_table.insertRow(row)
+            self.cart_table.setRowHeight(row, 58)
 
-            product_name = (
-                cart_item["product_name"]
-            )
+            product_name = cart_item["product_name"]
+            packaging = cart_item["sale_unit"]
 
-            packaging = (
-                cart_item["sale_unit"]
-            )
-
-            quantity = int(
-                cart_item["quantity"]
-            )
+            quantity = int(cart_item["quantity"])
 
             unit_price = float(
                 cart_item["unit_price"]
             )
 
-            line_total = (
-                quantity
-                * unit_price
-            )
-
-            # -------------------------------------------------
-            # PRODUIT
-            # -------------------------------------------------
+            line_total = quantity * unit_price
 
             product_cell = QTableWidgetItem(
                 product_name
@@ -1713,34 +1297,16 @@ class SalesPage(QWidget):
                 product_cell,
             )
 
-            # -------------------------------------------------
-            # CONDITIONNEMENT
-            # -------------------------------------------------
-
             packaging_combo = QComboBox()
+            packaging_combo.addItems(self.PACKAGING)
 
-            packaging_combo.addItems(
-                self.PACKAGING
-            )
-
-            packaging_combo.blockSignals(
-                True
-            )
-
-            packaging_combo.setCurrentText(
-                packaging
-            )
-
-            packaging_combo.blockSignals(
-                False
-            )
+            packaging_combo.blockSignals(True)
+            packaging_combo.setCurrentText(packaging)
+            packaging_combo.blockSignals(False)
 
             packaging_combo.currentTextChanged.connect(
                 lambda value, index=row:
-                self.change_packaging(
-                    index,
-                    value,
-                )
+                self.change_packaging(index, value)
             )
 
             self.cart_table.setCellWidget(
@@ -1748,10 +1314,6 @@ class SalesPage(QWidget):
                 1,
                 packaging_combo,
             )
-
-            # -------------------------------------------------
-            # QUANTITÉ
-            # -------------------------------------------------
 
             quantity_widget = QWidget()
 
@@ -1766,69 +1328,41 @@ class SalesPage(QWidget):
                 2,
             )
 
-            quantity_layout.setSpacing(
-                4
-            )
+            quantity_layout.setSpacing(4)
 
-            minus_button = QPushButton(
-                "−"
-            )
-
+            minus_button = QPushButton("−")
             minus_button.setProperty(
                 "class",
                 "small",
             )
 
-            plus_button = QPushButton(
-                "+"
-            )
-
+            plus_button = QPushButton("+")
             plus_button.setProperty(
                 "class",
                 "small",
             )
 
-            quantity_label = QLabel(
-                str(quantity)
-            )
+            quantity_label = QLabel(str(quantity))
 
             quantity_label.setAlignment(
                 Qt.AlignmentFlag.AlignCenter
             )
 
-            quantity_label.setMinimumWidth(
-                28
-            )
+            quantity_label.setMinimumWidth(28)
 
             minus_button.clicked.connect(
-                lambda _checked=False,
-                index=row:
-                self.change_quantity(
-                    index,
-                    -1,
-                )
+                lambda _checked=False, index=row:
+                self.change_quantity(index, -1)
             )
 
             plus_button.clicked.connect(
-                lambda _checked=False,
-                index=row:
-                self.change_quantity(
-                    index,
-                    1,
-                )
+                lambda _checked=False, index=row:
+                self.change_quantity(index, 1)
             )
 
-            quantity_layout.addWidget(
-                minus_button
-            )
-
-            quantity_layout.addWidget(
-                quantity_label
-            )
-
-            quantity_layout.addWidget(
-                plus_button
-            )
+            quantity_layout.addWidget(minus_button)
+            quantity_layout.addWidget(quantity_label)
+            quantity_layout.addWidget(plus_button)
 
             self.cart_table.setCellWidget(
                 row,
@@ -1836,14 +1370,8 @@ class SalesPage(QWidget):
                 quantity_widget,
             )
 
-            # -------------------------------------------------
-            # PRIX
-            # -------------------------------------------------
-
             price_cell = QTableWidgetItem(
-                self._format_money(
-                    unit_price
-                )
+                self._format_money(unit_price)
             )
 
             price_cell.setTextAlignment(
@@ -1856,14 +1384,8 @@ class SalesPage(QWidget):
                 price_cell,
             )
 
-            # -------------------------------------------------
-            # TOTAL
-            # -------------------------------------------------
-
             total_cell = QTableWidgetItem(
-                self._format_money(
-                    line_total
-                )
+                self._format_money(line_total)
             )
 
             total_cell.setTextAlignment(
@@ -1884,13 +1406,7 @@ class SalesPage(QWidget):
                 total_cell,
             )
 
-            # -------------------------------------------------
-            # SUPPRESSION
-            # -------------------------------------------------
-
-            remove_button = QPushButton(
-                "×"
-            )
+            remove_button = QPushButton("×")
 
             remove_button.setProperty(
                 "class",
@@ -1902,11 +1418,8 @@ class SalesPage(QWidget):
             )
 
             remove_button.clicked.connect(
-                lambda _checked=False,
-                index=row:
-                self.remove_cart_item(
-                    index
-                )
+                lambda _checked=False, index=row:
+                self.remove_cart_item(index)
             )
 
             self.cart_table.setCellWidget(
@@ -1919,15 +1432,12 @@ class SalesPage(QWidget):
         self.update_totals()
 
     def update_cart_count(self):
-        total_quantity = (
-            self._get_cart_quantity()
-        )
 
-        line_count = len(
-            self.cart
-        )
+        total_quantity = self._get_cart_quantity()
+        line_count = len(self.cart)
 
         if line_count == 0:
+
             self.cart_count_label.setText(
                 "0 article"
             )
@@ -1937,6 +1447,7 @@ class SalesPage(QWidget):
             )
 
         elif total_quantity == 1:
+
             self.cart_count_label.setText(
                 "1 article"
             )
@@ -1946,6 +1457,7 @@ class SalesPage(QWidget):
             )
 
         else:
+
             self.cart_count_label.setText(
                 f"{total_quantity} articles"
             )
@@ -1956,7 +1468,7 @@ class SalesPage(QWidget):
             )
 
     # =========================================================
-    # QUANTITÉ
+    # QUANTITE
     # =========================================================
 
     def change_quantity(
@@ -1964,35 +1476,28 @@ class SalesPage(QWidget):
         index,
         difference,
     ):
-        """Modifie la quantité d'une ligne."""
 
-        if (
-            index < 0
-            or index >= len(self.cart)
-        ):
+        if index < 0 or index >= len(self.cart):
             return
 
         item = self.cart[index]
 
         new_quantity = (
-            item["quantity"]
-            + difference
+            item["quantity"] + difference
         )
 
         if new_quantity <= 0:
-            self.remove_cart_item(
-                index
-            )
+            self.remove_cart_item(index)
             return
 
         session = SessionLocal()
 
         try:
+
             product = (
                 session.query(Product)
                 .filter(
-                    Product.id
-                    == item["product_id"]
+                    Product.id == item["product_id"]
                 )
                 .first()
             )
@@ -2005,21 +1510,16 @@ class SalesPage(QWidget):
                 )
                 return
 
-            units_per_packaging = (
-                get_units_for_packaging(
-                    product,
-                    item["sale_unit"],
-                )
+            units_per_packaging = get_units_for_packaging(
+                product,
+                item["sale_unit"],
             )
 
-            available_stock = (
-                self._get_valid_batch_stock(
-                    session,
-                    product.id,
-                )
+            available_stock = self._get_valid_batch_stock(
+                session,
+                product.id,
             )
 
-            # Compatibilité ancienne base.
             if available_stock <= 0:
                 available_stock = int(
                     getattr(
@@ -2031,14 +1531,11 @@ class SalesPage(QWidget):
                 )
 
             available_packages = (
-                available_stock
-                // units_per_packaging
+                available_stock // units_per_packaging
             )
 
-            if (
-                new_quantity
-                > available_packages
-            ):
+            if new_quantity > available_packages:
+
                 QMessageBox.warning(
                     self,
                     "Stock insuffisant",
@@ -2049,13 +1546,13 @@ class SalesPage(QWidget):
                         f"{item['sale_unit'].lower()}."
                     ),
                 )
+
                 return
 
-            item["quantity"] = (
-                new_quantity
-            )
+            item["quantity"] = new_quantity
 
         except Exception as error:
+
             QMessageBox.critical(
                 self,
                 "Erreur",
@@ -2080,34 +1577,23 @@ class SalesPage(QWidget):
         index,
         new_packaging,
     ):
-        """
-        Change le conditionnement.
 
-        Le prix est recalculé automatiquement.
-        """
-
-        if (
-            index < 0
-            or index >= len(self.cart)
-        ):
+        if index < 0 or index >= len(self.cart):
             return
 
         item = self.cart[index]
 
-        if (
-            item["sale_unit"]
-            == new_packaging
-        ):
+        if item["sale_unit"] == new_packaging:
             return
 
         session = SessionLocal()
 
         try:
+
             product = (
                 session.query(Product)
                 .filter(
-                    Product.id
-                    == item["product_id"]
+                    Product.id == item["product_id"]
                 )
                 .first()
             )
@@ -2120,18 +1606,19 @@ class SalesPage(QWidget):
                 )
                 return
 
-            units_per_packaging = (
-                get_units_for_packaging(
-                    product,
-                    new_packaging,
-                )
+            units_per_packaging = get_units_for_packaging(
+                product,
+                new_packaging,
             )
 
-            available_stock = (
-                self._get_valid_batch_stock(
-                    session,
-                    product.id,
+            if units_per_packaging <= 0:
+                raise ValueError(
+                    "Conversion de conditionnement invalide."
                 )
+
+            available_stock = self._get_valid_batch_stock(
+                session,
+                product.id,
             )
 
             if available_stock <= 0:
@@ -2145,14 +1632,11 @@ class SalesPage(QWidget):
                 )
 
             available_packages = (
-                available_stock
-                // units_per_packaging
+                available_stock // units_per_packaging
             )
 
-            if (
-                item["quantity"]
-                > available_packages
-            ):
+            if item["quantity"] > available_packages:
+
                 QMessageBox.warning(
                     self,
                     "Stock insuffisant",
@@ -2170,22 +1654,16 @@ class SalesPage(QWidget):
                 self.update_cart_ui()
                 return
 
-            unit_price = (
-                get_price_for_packaging(
-                    product,
-                    new_packaging,
-                )
+            unit_price = get_price_for_packaging(
+                product,
+                new_packaging,
             )
 
-            item["sale_unit"] = (
-                new_packaging
-            )
-
-            item["unit_price"] = float(
-                unit_price
-            )
+            item["sale_unit"] = new_packaging
+            item["unit_price"] = float(unit_price)
 
         except Exception as error:
+
             QMessageBox.critical(
                 self,
                 "Erreur",
@@ -2205,14 +1683,9 @@ class SalesPage(QWidget):
     # SUPPRESSION
     # =========================================================
 
-    def remove_cart_item(
-        self,
-        index,
-    ):
-        if (
-            index < 0
-            or index >= len(self.cart)
-        ):
+    def remove_cart_item(self, index):
+
+        if index < 0 or index >= len(self.cart):
             return
 
         item = self.cart[index]
@@ -2230,15 +1703,10 @@ class SalesPage(QWidget):
             QMessageBox.StandardButton.No,
         )
 
-        if (
-            answer
-            != QMessageBox.StandardButton.Yes
-        ):
+        if answer != QMessageBox.StandardButton.Yes:
             return
 
-        self.cart.pop(
-            index
-        )
+        self.cart.pop(index)
 
         self.update_cart_ui()
 
@@ -2247,38 +1715,28 @@ class SalesPage(QWidget):
     # =========================================================
 
     def calculate_subtotal(self):
+
         subtotal = 0.0
 
         for item in self.cart:
+
             quantity = float(
-                item.get(
-                    "quantity",
-                    0,
-                )
+                item.get("quantity", 0)
             )
 
             unit_price = float(
-                item.get(
-                    "unit_price",
-                    0,
-                )
+                item.get("unit_price", 0)
             )
 
-            subtotal += (
-                quantity
-                * unit_price
-            )
+            subtotal += quantity * unit_price
 
         return subtotal
 
     def update_totals(self):
-        subtotal = (
-            self.calculate_subtotal()
-        )
 
-        discount = (
-            self.discount_input.value()
-        )
+        subtotal = self.calculate_subtotal()
+
+        discount = self.discount_input.value()
 
         total = max(
             0.0,
@@ -2286,45 +1744,37 @@ class SalesPage(QWidget):
         )
 
         self.subtotal_label.setText(
-            self._format_money(
-                subtotal
-            )
+            self._format_money(subtotal)
         )
 
         self.discount_label.setText(
-            self._format_money(
-                discount
-            )
+            self._format_money(discount)
         )
 
         self.total_label.setText(
-            self._format_money(
-                total
-            )
+            self._format_money(total)
         )
 
     # =========================================================
-    # VÉRIFICATION AVANT VENTE
+    # VERIFICATION STOCK
     # =========================================================
 
-    def check_stock_before_sale(
-        self,
-    ):
-        """
-        Vérifie le stock réel avant la vente.
-
-        La vérification se fait en unités de base.
-        """
+    def check_stock_before_sale(self):
 
         session = SessionLocal()
 
         try:
+
+            # -------------------------------------------------
+            # Vérification de chaque ligne
+            # -------------------------------------------------
+
             for item in self.cart:
+
                 product = (
                     session.query(Product)
                     .filter(
-                        Product.id
-                        == item["product_id"]
+                        Product.id == item["product_id"]
                     )
                     .first()
                 )
@@ -2344,14 +1794,11 @@ class SalesPage(QWidget):
                     )
                 )
 
-                valid_stock = (
-                    self._get_valid_batch_stock(
-                        session,
-                        product.id,
-                    )
+                valid_stock = self._get_valid_batch_stock(
+                    session,
+                    product.id,
                 )
 
-                # Compatibilité ancienne base.
                 if valid_stock <= 0:
                     valid_stock = int(
                         getattr(
@@ -2362,10 +1809,8 @@ class SalesPage(QWidget):
                         or 0
                     )
 
-                if (
-                    valid_stock
-                    < required_units
-                ):
+                if valid_stock < required_units:
+
                     return (
                         f"Stock insuffisant pour "
                         f"« {product.name} ».\n\n"
@@ -2375,17 +1820,14 @@ class SalesPage(QWidget):
                         f"{valid_stock} unités de base"
                     )
 
-                # Vérifie qu'au moins un lot
-                # non expiré existe.
-                batches = (
-                    self._get_product_batches(
-                        session,
-                        product.id,
-                        include_expired=False,
-                    )
+                batches = self._get_product_batches(
+                    session,
+                    product.id,
+                    include_expired=False,
                 )
 
                 if not batches:
+
                     return (
                         f"Le médicament "
                         f"« {product.name} » "
@@ -2393,15 +1835,14 @@ class SalesPage(QWidget):
                         f"et non expiré."
                     )
 
-                allocations = (
-                    self._simulate_fefo(
-                        session,
-                        product,
-                        required_units,
-                    )
+                allocations = self._simulate_fefo(
+                    session,
+                    product,
+                    required_units,
                 )
 
                 if allocations is None:
+
                     return (
                         f"Le stock disponible "
                         f"en lots valides est "
@@ -2412,6 +1853,7 @@ class SalesPage(QWidget):
             return None
 
         except Exception as error:
+
             return (
                 "Impossible de vérifier le stock.\n\n"
                 f"{error}"
@@ -2425,25 +1867,23 @@ class SalesPage(QWidget):
     # =========================================================
 
     def validate_sale(self):
-        """Valide la vente."""
 
         if not self.cart:
+
             QMessageBox.warning(
                 self,
                 "Panier vide",
                 "Ajoutez au moins un médicament au panier.",
             )
+
             return
 
-        subtotal = (
-            self.calculate_subtotal()
-        )
+        subtotal = self.calculate_subtotal()
 
-        discount = (
-            self.discount_input.value()
-        )
+        discount = self.discount_input.value()
 
         if discount > subtotal:
+
             QMessageBox.warning(
                 self,
                 "Remise invalide",
@@ -2452,6 +1892,7 @@ class SalesPage(QWidget):
                     "supérieure au sous-total."
                 ),
             )
+
             return
 
         total = max(
@@ -2459,20 +1900,18 @@ class SalesPage(QWidget):
             subtotal - discount,
         )
 
-        payment_method = (
-            self.payment_combo.currentText()
-        )
+        payment_method = self.payment_combo.currentText()
 
-        stock_error = (
-            self.check_stock_before_sale()
-        )
+        stock_error = self.check_stock_before_sale()
 
         if stock_error:
+
             QMessageBox.warning(
                 self,
                 "Stock insuffisant",
                 stock_error,
             )
+
             return
 
         confirmation = QMessageBox.question(
@@ -2494,10 +1933,7 @@ class SalesPage(QWidget):
             QMessageBox.StandardButton.No,
         )
 
-        if (
-            confirmation
-            != QMessageBox.StandardButton.Yes
-        ):
+        if confirmation != QMessageBox.StandardButton.Yes:
             return
 
         self.save_sale(
@@ -2506,7 +1942,7 @@ class SalesPage(QWidget):
         )
 
     # =========================================================
-    # CRÉATION SALE ITEM
+    # CREATION SALE ITEM
     # =========================================================
 
     def _create_sale_item(
@@ -2518,10 +1954,8 @@ class SalesPage(QWidget):
         allocation,
     ):
         """
-        Crée une ligne SaleItem.
-
-        Si SaleItem possède batch_id, celui-ci est
-        automatiquement enregistré.
+        Crée une ligne SaleItem correspondant
+        à une consommation d'un lot.
         """
 
         batch = allocation["batch"]
@@ -2530,11 +1964,9 @@ class SalesPage(QWidget):
             allocation["units"]
         )
 
-        units_per_packaging = (
-            get_units_for_packaging(
-                product,
-                cart_item["sale_unit"],
-            )
+        units_per_packaging = get_units_for_packaging(
+            product,
+            cart_item["sale_unit"],
         )
 
         if units_per_packaging <= 0:
@@ -2542,37 +1974,38 @@ class SalesPage(QWidget):
                 "Conversion de conditionnement invalide."
             )
 
-        # Nombre de conditionnements correspondant
-        # à cette allocation.
-        package_quantity = (
-            consumed_units
-            / units_per_packaging
+        package_quantity_float = (
+            consumed_units / units_per_packaging
         )
 
-        # Pour une vente de conditionnement complet,
-        # cette valeur doit normalement être entière.
-        if package_quantity != int(
-            package_quantity
-        ):
-            raise ValueError(
-                (
-                    f"Le lot "
-                    f"{getattr(batch, 'batch_number', '')} "
-                    f"ne contient pas assez d'unités "
-                    f"pour constituer un "
-                    f"{cart_item['sale_unit'].lower()} "
-                    f"complet."
-                )
-            )
+        """
+        Une vente peut être répartie sur plusieurs lots.
 
-        package_quantity = int(
-            package_quantity
-        )
+        Exemple :
+
+        Vente = 2 boîtes
+        1 boîte = 100 comprimés
+
+        Lot A = 150 comprimés
+        Lot B = 150 comprimés
+
+        FEFO :
+        Lot A -> 150 comprimés
+        Lot B -> 50 comprimés
+
+        Le deuxième lot ne représente donc pas
+        une boîte complète.
+
+        Pour éviter une erreur de quantité,
+        on enregistre stock_units comme quantité
+        réelle consommée et quantity comme
+        équivalent de conditionnement.
+        """
 
         kwargs = {
             "sale": sale,
             "product_id": product.id,
-            "quantity": package_quantity,
+            "quantity": package_quantity_float,
             "unit_price": float(
                 cart_item["unit_price"]
             ),
@@ -2580,16 +2013,17 @@ class SalesPage(QWidget):
             "stock_units": consumed_units,
         }
 
-        # Ajoute batch_id uniquement si le modèle
-        # SaleItem le possède.
+        # -----------------------------------------------------
+        # batch_id si présent dans le modèle
+        # -----------------------------------------------------
+
         try:
-            sale_item_mapper = inspect(
-                SaleItem
-            )
+
+            mapper = inspect(SaleItem)
 
             has_batch_id = any(
                 column.key == "batch_id"
-                for column in sale_item_mapper.columns
+                for column in mapper.columns
             )
 
             if has_batch_id:
@@ -2598,12 +2032,10 @@ class SalesPage(QWidget):
         except Exception:
             pass
 
-        return SaleItem(
-            **kwargs
-        )
+        return SaleItem(**kwargs)
 
     # =========================================================
-    # ENREGISTREMENT
+    # ENREGISTREMENT VENTE
     # =========================================================
 
     def save_sale(
@@ -2612,25 +2044,41 @@ class SalesPage(QWidget):
         payment_method,
     ):
         """
-        Enregistre définitivement la vente.
+        Enregistre la vente et diminue le stock.
 
-        Important :
+        IMPORTANT :
 
-        Le stock est retiré dans la même transaction
-        que la vente.
+        La vente et la diminution du stock
+        sont effectuées dans la même transaction.
 
-        Si une erreur survient, tout est annulé.
+        Si une erreur arrive :
+
+            rollback()
+
+        donc :
+
+            aucune vente
+            aucun stock modifié
         """
 
         session = SessionLocal()
 
         try:
+
+            # =================================================
+            # NUMERO FACTURE
+            # =================================================
+
             invoice_number = (
                 "FAC-"
                 + datetime.now().strftime(
                     "%Y%m%d-%H%M%S-%f"
                 )
             )
+
+            # =================================================
+            # CREATION SALE
+            # =================================================
 
             sale = Sale(
                 invoice_number=invoice_number,
@@ -2639,14 +2087,12 @@ class SalesPage(QWidget):
                 total=float(total),
             )
 
-            session.add(
-                sale
-            )
+            session.add(sale)
 
             session.flush()
 
             # =================================================
-            # ARTICLES
+            # TRAITEMENT DES ARTICLES
             # =================================================
 
             for cart_item in self.cart:
@@ -2675,12 +2121,13 @@ class SalesPage(QWidget):
 
                 if quantity <= 0:
                     raise ValueError(
-                        "La quantité vendue doit être supérieure à zéro."
+                        "La quantité vendue doit être "
+                        "supérieure à zéro."
                     )
 
-                # -------------------------------------------------
-                # CONVERSION
-                # -------------------------------------------------
+                # =================================================
+                # CONVERSION EN UNITES DE BASE
+                # =================================================
 
                 required_units = (
                     self._get_base_units_for_quantity(
@@ -2690,19 +2137,27 @@ class SalesPage(QWidget):
                     )
                 )
 
-                # -------------------------------------------------
-                # FEFO
-                # -------------------------------------------------
-
-                allocations = (
-                    self._simulate_fefo(
-                        session,
-                        product,
-                        required_units,
+                if required_units <= 0:
+                    raise ValueError(
+                        (
+                            f"La quantité calculée "
+                            f"pour « {product.name} » "
+                            "est invalide."
+                        )
                     )
+
+                # =================================================
+                # FEFO
+                # =================================================
+
+                allocations = self._simulate_fefo(
+                    session,
+                    product,
+                    required_units,
                 )
 
                 if allocations is None:
+
                     raise ValueError(
                         (
                             f"Stock insuffisant pour "
@@ -2710,21 +2165,27 @@ class SalesPage(QWidget):
                         )
                     )
 
+                # =================================================
+                # CALCUL TOTAL CONSOMME
+                # =================================================
+
                 total_consumed = 0
+
+                # =================================================
+                # CONSOMMATION DES LOTS
+                # =================================================
 
                 for allocation in allocations:
 
-                    batch = allocation[
-                        "batch"
-                    ]
+                    batch = allocation["batch"]
 
                     consumed_units = int(
                         allocation["units"]
                     )
 
-                    # -----------------------------------------
-                    # Vérification expiration
-                    # -----------------------------------------
+                    # ---------------------------------------------
+                    # VERIFICATION EXPIRATION
+                    # ---------------------------------------------
 
                     expiry = getattr(
                         batch,
@@ -2752,9 +2213,9 @@ class SalesPage(QWidget):
                             )
                         )
 
-                    # -----------------------------------------
-                    # Retrait du lot
-                    # -----------------------------------------
+                    # ---------------------------------------------
+                    # STOCK ACTUEL DU LOT
+                    # ---------------------------------------------
 
                     current_batch_stock = int(
                         getattr(
@@ -2765,47 +2226,63 @@ class SalesPage(QWidget):
                         or 0
                     )
 
-                    if (
-                        current_batch_stock
-                        < consumed_units
-                    ):
+                    if current_batch_stock < consumed_units:
+
                         raise ValueError(
                             (
-                                f"Le stock du lot "
-                                f"{getattr(batch, 'batch_number', 'inconnu')} "
-                                f"a changé pendant la vente."
+                                f"Stock insuffisant dans "
+                                f"le lot "
+                                f"{getattr(batch, 'batch_number', 'inconnu')}."
                             )
                         )
+
+                    # ---------------------------------------------
+                    # DIMINUTION DU LOT
+                    # ---------------------------------------------
 
                     batch.stock_units = (
                         current_batch_stock
                         - consumed_units
                     )
 
-                    total_consumed += (
-                        consumed_units
+                    # ---------------------------------------------
+                    # TOTAL CONSOMME
+                    # ---------------------------------------------
+
+                    total_consumed += consumed_units
+
+                    # ---------------------------------------------
+                    # CREATION SALE ITEM
+                    # ---------------------------------------------
+
+                    sale_item = self._create_sale_item(
+                        session=session,
+                        sale=sale,
+                        product=product,
+                        cart_item=cart_item,
+                        allocation=allocation,
                     )
 
-                    # -----------------------------------------
-                    # SaleItem
-                    # -----------------------------------------
+                    session.add(sale_item)
 
-                    sale_item = (
-                        self._create_sale_item(
-                            session,
-                            sale,
-                            product,
-                            cart_item,
-                            allocation,
+                # =================================================
+                # VERIFICATION FINALE
+                # =================================================
+
+                if total_consumed != required_units:
+
+                    raise ValueError(
+                        (
+                            f"Erreur de synchronisation "
+                            f"du stock pour "
+                            f"« {product.name} ».\n\n"
+                            f"Demandé : {required_units}\n"
+                            f"Consommé : {total_consumed}"
                         )
                     )
 
-                    session.add(
-                        sale_item
-                    )
-
                 # =================================================
-                # STOCK GLOBAL DU PRODUIT
+                # MISE A JOUR STOCK GLOBAL
                 # =================================================
 
                 current_product_stock = int(
@@ -2817,22 +2294,32 @@ class SalesPage(QWidget):
                     or 0
                 )
 
-                product.stock_units = max(
-                    0,
+                if current_product_stock < total_consumed:
+
+                    raise ValueError(
+                        (
+                            f"Le stock global du produit "
+                            f"« {product.name} » "
+                            f"est inférieur à la quantité vendue."
+                        )
+                    )
+
+                product.stock_units = (
                     current_product_stock
-                    - total_consumed,
+                    - total_consumed
                 )
 
-                # Synchronise quantity / affichage
+                # =================================================
+                # MISE A JOUR AFFICHAGE
+                # =================================================
+
                 try:
-                    update_display_quantity(
-                        product
-                    )
+                    update_display_quantity(product)
                 except Exception:
                     pass
 
             # =================================================
-            # COMMIT
+            # COMMIT FINAL
             # =================================================
 
             session.commit()
@@ -2841,13 +2328,12 @@ class SalesPage(QWidget):
             # FACTURE
             # =================================================
 
-            invoice_generated = (
-                self.generate_invoice(
-                    sale
-                )
+            invoice_generated = self.generate_invoice(
+                sale
             )
 
             if invoice_generated:
+
                 QMessageBox.information(
                     self,
                     "Vente enregistrée",
@@ -2858,11 +2344,13 @@ class SalesPage(QWidget):
                         f"{invoice_number}\n"
                         f"Total : "
                         f"{self._format_money(total)}\n\n"
-                        "Stock FEFO mis à jour."
+                        "Le stock a été automatiquement "
+                        "diminué selon la méthode FEFO."
                     ),
                 )
 
             else:
+
                 QMessageBox.information(
                     self,
                     "Vente enregistrée",
@@ -2873,14 +2361,25 @@ class SalesPage(QWidget):
                         f"{invoice_number}\n"
                         f"Total : "
                         f"{self._format_money(total)}\n\n"
+                        "Le stock a été automatiquement "
+                        "diminué.\n\n"
                         "La facture PDF n'a pas pu "
                         "être générée."
                     ),
                 )
 
+            # =================================================
+            # RESET
+            # =================================================
+
             self.reset_sale()
 
         except Exception as error:
+
+            # =================================================
+            # ANNULATION COMPLETE
+            # =================================================
+
             session.rollback()
 
             QMessageBox.critical(
@@ -2888,33 +2387,29 @@ class SalesPage(QWidget):
                 "Erreur d'enregistrement",
                 (
                     "La vente n'a pas pu être enregistrée.\n\n"
-                    f"{error}"
+                    f"{error}\n\n"
+                    "Aucun stock n'a été définitivement "
+                    "modifié."
                 ),
             )
 
         finally:
+
             session.close()
 
     # =========================================================
     # FACTURE
     # =========================================================
 
-    def generate_invoice(
-        self,
-        sale,
-    ):
-        """
-        Génère la facture PDF.
-        """
+    def generate_invoice(self, sale):
 
         try:
+
             from utils.pdf_generator import (
                 generate_invoice_pdf,
             )
 
-            generate_invoice_pdf(
-                sale
-            )
+            generate_invoice_pdf(sale)
 
             return True
 
@@ -2932,33 +2427,19 @@ class SalesPage(QWidget):
     # =========================================================
 
     def reset_sale(self):
-        """Réinitialise la page."""
 
         self.cart.clear()
 
-        self.discount_input.blockSignals(
-            True
-        )
+        self.discount_input.blockSignals(True)
 
-        self.discount_input.setValue(
-            0.0
-        )
+        self.discount_input.setValue(0.0)
 
-        self.discount_input.blockSignals(
-            False
-        )
+        self.discount_input.blockSignals(False)
 
-        self.payment_combo.setCurrentIndex(
-            0
-        )
+        self.payment_combo.setCurrentIndex(0)
+        self.packaging_combo.setCurrentIndex(0)
 
-        self.packaging_combo.setCurrentIndex(
-            0
-        )
-
-        self.cart_table.setRowCount(
-            0
-        )
+        self.cart_table.setRowCount(0)
 
         self.search_input.clear()
 
